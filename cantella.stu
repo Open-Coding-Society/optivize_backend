@@ -1,7 +1,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name cantella.stu.nighthawkcodingsociety.com;
+    server_name bioludica.stu.nighthawkcodingsociety.com;
     location / { 
        proxy_pass https://localhost:8202;
         if ($request_method = OPTIONS ) {

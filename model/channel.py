@@ -253,10 +253,10 @@ def initChannels():
             Channel(name='Combos', group_id=flavor_fusion.id),
         ]
         
-        # Cantella Channels:
-        cantella = Group.query.filter_by(_name='Cantella').first()
+        # bioludica Channels:
+        bioludica = Group.query.filter_by(_name='bioludica').first()
         home_page_channels = [
-            Channel(name='Home', group_id=cantella.id),
+            Channel(name='Home', group_id=bioludica.id),
             Channel(name='Flashcards', group_id=flashcards.id),
             Channel(name='studylog', group_id=studylog.id),
         ]
