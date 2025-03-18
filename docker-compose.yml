@@ -1,0 +1,12 @@
+version: '3'
+services:
+        web:
+                image: cantella
+                build: .
+                env_file:
+                        - .env # This file is optional; defaults will be used if it does not exist
+                ports:
+                        - "8202:8202"
+                volumes:
+                        - ./instance:/instance
+                restart: unless-stopped

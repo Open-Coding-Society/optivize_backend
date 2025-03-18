@@ -1,0 +1,99 @@
+{% extends "layouts/base.html" %}
+{% set project = "Home" %}
+
+{% block body %}
+<style>
+    /* General Styling */
+    body {
+        background-color: #121212; /* Dark background */
+        color: white;
+    }
+
+    /* Card Styling */
+    .custom-card {
+        border-radius: 15px;
+        box-shadow: 0px 4px 10px rgba(255, 165, 0, 0.3);
+        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        background: linear-gradient(135deg, #ff8000, #ffbf00); /* Cool orange gradient */
+        color: white; /* White text */
+    }
+
+    /* Hover effect */
+    .custom-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0px 6px 15px rgba(255, 140, 0, 0.6);
+    }
+
+    /* Button Styling */
+    .btn-orange {
+        background-color: #ff8000;
+        border: none;
+        color: white;
+        font-weight: bold;
+        transition: background 0.3s, transform 0.2s;
+    }
+
+    .btn-orange:hover {
+        background-color: #ffbf00;
+        transform: scale(1.05);
+    }
+</style>
+
+<div class="text-center">
+    <h1 class="text-white mb-4"><strong>Cantella Admin Panel</strong></h1>
+    <div class="row justify-content-center">
+        <!-- User Management Box -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card p-3 shadow-lg custom-card">
+                <img class="card-img-top mx-auto d-block" 
+                     src="{{ url_for('static', filename='assets/user.png') }}" 
+                     alt="User Management" 
+                     style="width: 50%;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">User Management</h5>
+                    <p class="card-text">
+                        <ol class="text-start">
+                            <li>Add, remove, or modify users</li>
+                        </ol>
+                    </p>
+                    <a href="https://cantella.stu.nighthawkcodingsociety.com/users/table2" class="btn btn-orange d-block mx-auto">Manage Users</a>
+                </div>
+            </div>
+        </div>  
+
+        <!-- Admin Roles Box -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card p-3 shadow-lg custom-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Admin Roles</h5>
+                    <p class="card-text">
+                        <ol class="text-start">
+                            <li><strong>Backend Admin Engineer:</strong> Zafeer and Armaghan</li>
+                            <li><strong>Scrum Master:</strong> Xavier</li>
+                            <li><strong>Assistant Scrum Master:</strong> Nolan</li>
+                            <li><strong>Assistant Deployment Admin:</strong> Armaghan</li>
+                            <li><strong>Frontend UX Designer:</strong> Jackson and Arush</li>
+                            <li><strong>Deployment Admin:</strong> Xavier</li>
+                        </ol>
+                    </p>
+                </div>
+            </div>
+        </div>  
+
+        <!-- Flashcard Management Box -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card p-3 shadow-lg custom-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Flashcard Management</h5>
+                    <p class="card-text">
+                        <ol class="text-start">
+                            <li>View, edit, and delete flashcards</li>
+                        </ol>
+                    </p>
+                    <a href="https://cantella.stu.nighthawkcodingsociety.com/flashcards" class="btn btn-orange d-block mx-auto">Manage Flashcards</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
