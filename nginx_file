@@ -4,7 +4,7 @@ server {
     server_name bioludica.stu.nighthawkcodingsociety.com;
 
     location / { 
-        proxy_pass http://localhost:8202;
+        proxy_pass http://localhost:8212;
 
         # Allow credentials and specific origin
         add_header "Access-Control-Allow-Origin" "https://zafeera123.github.io" always;

@@ -555,7 +555,7 @@ if __name__ == "__main__":
         
     app.config['TIMEZONE'] = 'America/Los_Angeles'
     init_database()
-    app.run(host="0.0.0.0", port="8202")
+    app.run(host="0.0.0.0", port="8212")
 
 
 
