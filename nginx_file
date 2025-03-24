@@ -6,14 +6,13 @@ server {
     location / { 
         proxy_pass http://localhost:8212;
 
-        # Allow credentials and specific origin
-# add_header "Access-Control-Allow-Origin" "https://zafeera123.github.io" always;
-# add_header "Access-Control-Allow-Credentials" "true" always;
-# add_header "Access-Control-Allow-Methods" "GET, POST, PUT, DELETE, OPTIONS, HEAD" always;
-# add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept, x-origin" always;
-
-
+        # Make sure preflight OPTIONS requests are handled correctly
         if ($request_method = OPTIONS) {
+            # Handle CORS preflight request by returning 204 (No Content) response
+            add_header "Access-Control-Allow-Origin" "https://zafeera123.github.io" always;
+            add_header "Access-Control-Allow-Credentials" "true" always;
+            add_header "Access-Control-Allow-Methods" "GET, POST, PUT, DELETE, OPTIONS, HEAD" always;
+            add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept, x-origin" always;
             return 204;
         }
     }
