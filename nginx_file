@@ -7,11 +7,11 @@ server {
         proxy_pass http://localhost:8212;
 
         # Allow credentials and specific origin
-        add_header "Access-Control-Allow-Origin" "https://zafeera123.github.io" always;
-        add_header "Access-Control-Allow-Credentials" "true" always;
-        add_header "Access-Control-Allow-Methods" "GET, POST, PUT, DELETE, OPTIONS, HEAD" always;
-        # ✅ Added x-origin to allowed headers
-        add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept, x-origin" always;
+# add_header "Access-Control-Allow-Origin" "https://zafeera123.github.io" always;
+# add_header "Access-Control-Allow-Credentials" "true" always;
+# add_header "Access-Control-Allow-Methods" "GET, POST, PUT, DELETE, OPTIONS, HEAD" always;
+# add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept, x-origin" always;
+
 
         if ($request_method = OPTIONS) {
             return 204;
