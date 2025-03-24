@@ -15,7 +15,7 @@ app = Flask(__name__)
 if __name__ == '__main__':
     app.run(debug=True)
 
-
+    
 # Initialize Flask application
 app = Flask(__name__)
 CORS(app, supports_credentials=True, origins=["https://zafeera123.github.io"])
