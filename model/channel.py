@@ -253,10 +253,10 @@ def initChannels():
             Channel(name='Combos', group_id=flavor_fusion.id),
         ]
         
-        # bioludica Channels:
-        bioludica = Group.query.filter_by(_name='bioludica').first()
+        # optivize Channels:
+        optivize = Group.query.filter_by(_name='optivize').first()
         home_page_channels = [
-            Channel(name='Home', group_id=bioludica.id),
+            Channel(name='Home', group_id=optivize.id),
             Channel(name='Flashcards', group_id=flashcards.id),
             Channel(name='studylog', group_id=studylog.id),
         ]

@@ -186,10 +186,10 @@ def initGroups():
             Group(name='Support', section_id=home_page_section.id, moderators=[User.query.get(1)])
         ]
 
-        # bioludica Groups:
-        bioludica_section = Section.query.filter_by(_name='bioludica').first()
+        # optivize Groups:
+        optivize_section = Section.query.filter_by(_name='optivize').first()
         groups += [
-            Group(name='bioludica', section_id=bioludica_section.id, moderators=[User.query.get(1)])
+            Group(name='optivize', section_id=optivize_section.id, moderators=[User.query.get(1)])
         ]
 
         for group in groups:
