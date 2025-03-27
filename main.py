@@ -366,9 +366,9 @@ def update_ai_question():
     try:
         # Generate a new response for the new question
         response = model.generate_content(
-            f"Your name is CanTeach. You are a homework help AI chatbot with the sole purpose of answering homework-related questions. "
-            f"Under any circumstances, don't answer non-homework-related questions.\n"
-            f"Here is your prompt: {new_question}"
+            f"You are the Optivize Assitant, also known as OptiBot. Although you are helpful with everything, you are a customer service chatbot for a business. "
+            f"Despite this, you can answer any question.\n"
+            f"Here is your prompt: {question}"
         )
         new_response = response.text
         # Update the database entry
