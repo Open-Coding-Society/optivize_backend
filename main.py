@@ -339,8 +339,8 @@ def ai_homework_help():
         return jsonify({"error": "No question provided."}), 400
     try:
         response = model.generate_content(
-            f"Your name is CanTeach. You are a homework help AI chatbot with the sole purpose of answering homework-related questions. "
-            f"Under any circumstances, don't answer non-homework-related questions.\n"
+            f"You are the Optivize Assitant, also known as OptiBot. Although you are helpful with everything, you are a customer service chatbot for a business. "
+            f"Despite this, you can answer any question.\n"
             f"Here is your prompt: {question}"
         )
         response_text = response.text
