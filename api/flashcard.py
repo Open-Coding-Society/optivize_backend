@@ -11,8 +11,7 @@ flashcard_api = Blueprint('flashcard_api', __name__, url_prefix='/api')
 # ✅ Correctly enable CORS with credentials support
 CORS(
     flashcard_api,
-    resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
-    supports_credentials=True
+    resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}}, supports_credentials=True
 )
 
 
@@ -86,15 +85,15 @@ class FlashcardAPI:
                 return {'message': 'Failed to delete flashcard', 'error': str(e)}, 500
 
 
-    # ✅ Handle OPTIONS requests for preflight
-    @flashcard_api.route('/flashcard/<int:flashcard_id>', methods=['OPTIONS'])
+    @flashcard_api.route('/flashcard', methods=['OPTIONS'])
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
-    def flashcard_options(flashcard_id):
+    def flashcard_options_root():
         response = jsonify({})
         response.headers.add("Access-Control-Allow-Origin", "https://zafeera123.github.io")
-        response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
         response.headers.add("Access-Control-Allow-Credentials", "true")
-        return '', 204  # Return an empty 204 response for preflight
+        return '', 204
+
 
 api.add_resource(FlashcardAPI._CRUD, '/flashcard', '/flashcard/<int:flashcard_id>')
