@@ -3,94 +3,121 @@
 
 {% block body %}
 <style>
-    /* General Styling */
-    body {
-        background-color: #121212; /* Dark background */
-        color: white;
-    }
+
 
     /* Card Styling */
     .custom-card {
-        border-radius: 15px;
-        box-shadow: 0px 4px 10px rgba(255, 165, 0, 0.3);
+        border-radius: 20px;
+        box-shadow: 0px 6px 15px rgba(255, 165, 0, 0.3);
         transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-        background: linear-gradient(135deg, #ff8000, #ffbf00); /* Cool orange gradient */
+        background: linear-gradient(135deg, #ff6a00, #ffa500); /* Sleek orange gradient */
         color: white; /* White text */
+        padding: 30px;
+        margin-bottom: 20px;
     }
 
     /* Hover effect */
     .custom-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0px 6px 15px rgba(255, 140, 0, 0.6);
+        box-shadow: 0px 8px 20px rgba(255, 140, 0, 0.6);
     }
 
     /* Button Styling */
     .btn-orange {
-        background-color: #ff8000;
+        background-color: #ff6a00;
         border: none;
         color: white;
         font-weight: bold;
         transition: background 0.3s, transform 0.2s;
+        padding: 12px 18px;
+        border-radius: 12px;
+        font-size: 1.1em;
     }
 
     .btn-orange:hover {
-        background-color: #ffbf00;
-        transform: scale(1.05);
+        background-color: #ffa500;
+        transform: scale(1.07);
+    }
+
+    /* Title Styling */
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 30px;
+    }
+
+    .card-title {
+        font-size: 1.8rem;
+        font-weight: bold;
+    }
+
+    .card-text {
+        font-size: 1.2rem;
     }
 </style>
 
 <div class="text-center">
-    <h1 class="text-white mb-4"><strong>optivize Admin Panel</strong></h1>
+    <h1 class="text-white page-title">Optivize Admin Panel</h1>
     <div class="row justify-content-center">
-        <!-- User Management Box -->
+        <!-- About Us & Team -->
         <div class="col-md-6 col-lg-4">
             <div class="card p-3 shadow-lg custom-card">
-                <img class="card-img-top mx-auto d-block" 
-                     src="{{ url_for('static', filename='assets/user.png') }}" 
-                     alt="User Management" 
-                     style="width: 50%;">
                 <div class="card-body text-center">
-                    <h5 class="card-title">User Management</h5>
+                    <h5 class="card-title">About Us & Team</h5>
                     <p class="card-text">
-                        <ol class="text-start">
-                            <li>Add, remove, or modify users</li>
-                        </ol>
+                        We are Optivize, a student-led initiative developing AI-driven solutions to enhance business efficiency for Chamber of Commerce members in Poway.
                     </p>
-                    <a href="https://optivize.stu.nighthawkcodingsociety.com/users/table2" class="btn btn-orange d-block mx-auto">Manage Users</a>
+                    <p><strong>Team Members:</strong></p>
+                    <ul class="text-start">
+                        <li>Hithin</li>
+                        <li>Nikhil</li>
+                        <li>Aarav</li>
+                        <li>Zafeer</li>
+                        <li>Keerthan</li>
+                        <li>Marti</li>
+                    </ul>
                 </div>
             </div>
         </div>  
 
-        <!-- Admin Roles Box -->
+        <!-- Project Scope & Deliverables -->
         <div class="col-md-6 col-lg-4">
             <div class="card p-3 shadow-lg custom-card">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Admin Roles</h5>
+                    <h5 class="card-title">Project Scope & Deliverables</h5>
                     <p class="card-text">
-                        <ol class="text-start">
-                            <li><strong>Backend Admin Engineer:</strong> Zafeer and Armaghan</li>
-                            <li><strong>Scrum Master:</strong> Xavier</li>
-                            <li><strong>Assistant Scrum Master:</strong> Nolan</li>
-                            <li><strong>Assistant Deployment Admin:</strong> Armaghan</li>
-                            <li><strong>Frontend UX Designer:</strong> Jackson and Arush</li>
-                            <li><strong>Deployment Admin:</strong> Xavier</li>
-                        </ol>
+                        Our AI solutions are designed to increase business productivity by 20% within six months.
                     </p>
+                    <ul class="text-start">
+                        <li><strong>AI Customer Service Chatbot:</strong> Provides instant customer support, reducing workload and response time.</li>
+                        <li><strong>Predictive Sales Analytics Tool:</strong> Uses AI to analyze sales data, predict trends, and suggest growth strategies.</li>
+                        <li><strong>Automated Inventory Management System:</strong> Optimizes stock levels, reduces waste, and improves supply chain efficiency.</li>
+                    </ul>
                 </div>
             </div>
         </div>  
 
-        <!-- Flashcard Management Box -->
+        <!-- Opportunities & Challenges -->
         <div class="col-md-6 col-lg-4">
             <div class="card p-3 shadow-lg custom-card">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Flashcard Management</h5>
+                    <h5 class="card-title">Opportunities & Challenges</h5>
                     <p class="card-text">
-                        <ol class="text-start">
-                            <li>View, edit, and delete flashcards</li>
-                        </ol>
+                        <strong>Opportunities:</strong>
                     </p>
-                    <a href="https://optivize.stu.nighthawkcodingsociety.com/flashcards" class="btn btn-orange d-block mx-auto">Manage Flashcards</a>
+                    <ul class="text-start">
+                        <li>Enhance operational efficiency through AI-driven automation.</li>
+                        <li>Help businesses stay competitive in the digital economy.</li>
+                        <li>Reduce costs by optimizing workflows and reducing human effort in repetitive tasks.</li>
+                    </ul>
+                    <p class="card-text">
+                        <strong>Challenges:</strong>
+                    </p>
+                    <ul class="text-start">
+                        <li>Ensuring seamless AI integration with existing business processes.</li>
+                        <li>Providing training to businesses for smooth AI adoption.</li>
+                        <li>Accurately measuring productivity improvements and AI impact.</li>
+                    </ul>
                 </div>
             </div>
         </div>
