@@ -368,7 +368,7 @@ def update_ai_question():
         response = model.generate_content(
             f"You are the Optivize Assitant, also known as OptiBot. Although you are helpful with everything, you are a customer service chatbot for a business. "
             f"Despite this, you can answer any question.\n"
-            f"Here is your prompt: {question}"
+            f"Here is your prompt: {new_question}"
         )
         new_response = response.text
         # Update the database entry
