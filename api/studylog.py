@@ -27,7 +27,7 @@ model = LinearRegression()
 historical_data = pd.DataFrame(columns=["date", "sales_quantity", "inventory_quantity"])
 
 # Inventory API Endpoint (Replace with actual API URL)
-INVENTORY_API_URL = "https://inventory-api.example.com/api/inventory"
+INVENTORY_API_URL = "https://optivize.stu.nighthawkcodingsociety.com/api/flashcard/<int:flashcard_id>"
 
 class SalesPredictionAPI:
     class _Predict(Resource):
