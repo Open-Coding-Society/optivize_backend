@@ -16,7 +16,11 @@ from werkzeug.security import generate_password_hash
 import shutil
 from flask_cors import CORS  # Import CORS
 from flask import Blueprint, jsonify
+<<<<<<< Updated upstream
 from api.flashcard import flashcard_api
+=======
+#from api.flashcard_import import flashcard_import_api
+>>>>>>> Stashed changes
 from model.channel import Channel
 from api.deck import deck_api
 import random
@@ -37,7 +41,7 @@ from api.nestPost import nestPost_api  # Custom format
 from api.messages_api import messages_api  # Messages
 from api.flashcard import flashcard_api
 from api.vote import vote_api
-from api.studylog import studylog_api
+from api.studylog import prediction_api
 from api.gradelog import gradelog_api
 from api.profile import profile_api
 from api.tips import tips_api
