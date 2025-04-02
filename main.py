@@ -37,7 +37,7 @@ from api.nestPost import nestPost_api  # Custom format
 from api.messages_api import messages_api  # Messages
 from api.flashcard import flashcard_api
 from api.vote import vote_api
-from api.studylog import prediction_api
+from api.studylog import cookie_api
 from api.gradelog import gradelog_api
 from api.profile import profile_api
 from api.tips import tips_api
@@ -55,7 +55,7 @@ from model.post import Post, initPosts
 from model.nestPost import NestPost, initNestPosts
 from model.vote import Vote, initVotes
 from model.flashcard import Flashcard, initFlashcards
-from model.studylog import StudyLog, initStudyLog
+from model.studylog import initCookieSalesPredictions
 from model.gradelog import initGradeLog
 from model.profiles import Profile, initProfiles
 from model.chatlog import ChatLog, initChatLogs
@@ -77,7 +77,7 @@ app.register_blueprint(nestPost_api)
 app.register_blueprint(nestImg_api)
 app.register_blueprint(vote_api)
 app.register_blueprint(flashcard_api)
-app.register_blueprint(prediction_api)
+app.register_blueprint(cookie_api)
 app.register_blueprint(gradelog_api)
 app.register_blueprint(profile_api)
 app.register_blueprint(tips_api)
