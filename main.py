@@ -253,7 +253,7 @@ def generate_data():
     initDecks()
     initChatLogs()
     initProfiles()
-    initStudyLog()
+    initCookieSalesPredictions()
     initLeaderboard()
 
 
