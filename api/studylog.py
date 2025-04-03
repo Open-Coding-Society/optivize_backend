@@ -7,7 +7,11 @@ import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-
+import numpy as np
+import joblib  # For loading the model
+from flask import Flask, request, jsonify
+from flask_restful import Resource
+from flask_cors import cross_origin
 from model.studylog import CookieSalesPrediction
 
 cookie_api = Blueprint('cookie_api', __name__, url_prefix='/api')
@@ -16,42 +20,61 @@ api = Api(cookie_api)
 # ✅ Enable CORS with credentials support
 CORS(cookie_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
      supports_credentials=True)
-
-# Load Model
+# Load model safely
 try:
-    model = joblib.load("titanic_cookie_model.pkl")
-except FileNotFoundError:
-    model = None  # No pre-trained model found
+    model = joblib.load('path/to/your/saved_model.pkl')  # Ensure correct path
+    print("✅ Model loaded successfully.")
+except Exception as e:
+    model = None
+    print(f"⚠️ Failed to load model: {e}")
+
 class CookiePredictionAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
         """Predict cookie success using a machine learning model."""
-        logging.debug("Received POST request to /api/predict")
+        try:
+            # Ensure JSON data is received
+            if not request.is_json:
+                return jsonify({'message': 'Invalid request: JSON data required'}), 400
 
-        data = request.get_json()
-        logging.debug(f"Received Data: {data}")
+            data = request.get_json()
+            print("📥 Received data:", data)
 
-        # Required fields from frontend
-        required_fields = ['cookie_flavor', 'price', 'marketing']
-        if not all(field in data for field in required_fields):
-            return {'message': 'Missing required fields'}, 400
+            # Check if required fields exist
+            required_fields = ['cookie_flavor', 'price', 'marketing']
+            if not all(field in data for field in required_fields):
+                return jsonify({'message': 'Missing required fields'}), 400
 
-        if not model:
-            return {'message': 'Model not trained. Please train the model first.'}, 500
+            # Validate and convert input values
+            try:
+                cookie_flavor = str(data['cookie_flavor']).strip()
+                price = float(data['price'])  # Convert to float
+                marketing = float(data['marketing'])  # Convert to float
+            except (ValueError, TypeError):
+                return jsonify({'message': 'Invalid input: Price and Marketing must be numbers'}), 400
 
-        # Convert inputs into an array for model prediction
-        input_data = np.array([[
-            hash(data['cookie_flavor']) % 1000,  # Hashing flavor to numerical value
-            data['price'],
-            data['marketing']
-        ]])
+            # Ensure model is loaded
+            if model is None:
+                return jsonify({'message': 'Model not trained. Please train the model first.'}), 500
 
-        # Predict success (returns probability between 0 and 1)
-        success_probability = model.predict_proba(input_data)[0][1] * 100  # Convert to percentage
+            # Convert input to model format
+            input_data = np.array([[
+                hash(cookie_flavor) % 1000,  # Hashing flavor to numerical value
+                price,
+                marketing
+            ]])
 
-        logging.debug(f"Predicted Success Probability: {success_probability:.2f}%")
+            print("🔢 Input data for model prediction:", input_data)
 
-        return jsonify({'success_probability': round(success_probability, 2)})
+            # Predict success probability (0 to 1) and convert to percentage
+            success_probability = model.predict_proba(input_data)[0][1] * 100
+            print(f"📊 Predicted success probability: {success_probability:.2f}%")
+
+            return jsonify({'success_probability': round(success_probability, 2)})
+
+        except Exception as e:
+            print(f"❌ Error during prediction: {e}")
+            return jsonify({'message': f"An error occurred during prediction: {str(e)}"}), 500
 
 class CookieTrainingAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
