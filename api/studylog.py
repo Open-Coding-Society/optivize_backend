@@ -1,3 +1,4 @@
+import logging
 from pandas import DataFrame
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
@@ -26,7 +27,10 @@ class CookiePredictionAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
         """Predict cookie success using Titanic-based model."""
+        logging.debug("Received POST request to /api/predict")
         data = request.get_json()
+        logging.debug(f"Received Data: {data}")
+
         required_fields = ['cookie_flavor', 'seasonality', 'price', 'marketing', 'customer_sentiment']
         if not all(field in data for field in required_fields):
             return {'message': 'Missing required fields'}, 400
@@ -34,7 +38,6 @@ class CookiePredictionAPI(Resource):
         if not model:
             return {'message': 'Model not trained. Please train the model first.'}, 500
 
-        # Prepare input for the model
         input_data = np.array([[
             hash(data['cookie_flavor']) % 1000,  
             hash(data['seasonality']) % 1000,
@@ -43,7 +46,6 @@ class CookiePredictionAPI(Resource):
             data['customer_sentiment']
         ]])
 
-        # Predict success
         prediction = model.predict(input_data)[0]
         predicted_success = bool(prediction)
 
@@ -57,9 +59,9 @@ class CookiePredictionAPI(Resource):
             predicted_success=predicted_success
         )
         new_prediction.create()
+        logging.debug("Data stored in database")
 
         return jsonify({'success': predicted_success})
-
 
 class CookieTrainingAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
