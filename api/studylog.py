@@ -22,46 +22,36 @@ try:
     model = joblib.load("titanic_cookie_model.pkl")
 except FileNotFoundError:
     model = None  # No pre-trained model found
-
 class CookiePredictionAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
-        """Predict cookie success using Titanic-based model."""
+        """Predict cookie success using a machine learning model."""
         logging.debug("Received POST request to /api/predict")
+
         data = request.get_json()
         logging.debug(f"Received Data: {data}")
 
-        required_fields = ['cookie_flavor', 'seasonality', 'price', 'marketing', 'customer_sentiment']
+        # Required fields from frontend
+        required_fields = ['cookie_flavor', 'price', 'marketing']
         if not all(field in data for field in required_fields):
             return {'message': 'Missing required fields'}, 400
 
         if not model:
             return {'message': 'Model not trained. Please train the model first.'}, 500
 
+        # Convert inputs into an array for model prediction
         input_data = np.array([[
-            hash(data['cookie_flavor']) % 1000,  
-            hash(data['seasonality']) % 1000,
+            hash(data['cookie_flavor']) % 1000,  # Hashing flavor to numerical value
             data['price'],
-            data['marketing'],
-            data['customer_sentiment']
+            data['marketing']
         ]])
 
-        prediction = model.predict(input_data)[0]
-        predicted_success = bool(prediction)
+        # Predict success (returns probability between 0 and 1)
+        success_probability = model.predict_proba(input_data)[0][1] * 100  # Convert to percentage
 
-        # Save prediction in database
-        new_prediction = CookieSalesPrediction(
-            cookie_flavor=data['cookie_flavor'],
-            seasonality=data['seasonality'],
-            price=data['price'],
-            marketing=data['marketing'],
-            customer_sentiment=data['customer_sentiment'],
-            predicted_success=predicted_success
-        )
-        new_prediction.create()
-        logging.debug("Data stored in database")
+        logging.debug(f"Predicted Success Probability: {success_probability:.2f}%")
 
-        return jsonify({'success': predicted_success})
+        return jsonify({'success_probability': round(success_probability, 2)})
 
 class CookieTrainingAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
