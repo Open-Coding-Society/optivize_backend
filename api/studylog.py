@@ -33,13 +33,13 @@ class CookiePredictionAPI(Resource):
             data = request.get_json()
             print("📥 Received data:", data)
 
-            required_fields = ['cookie_flavor', 'price', 'marketing']
+            required_fields = ['cookie_flavor', 'price', 'marketing spend']
             if not all(field in data for field in required_fields):
                 return jsonify({'message': 'Missing required fields'}), 400
 
             cookie_flavor = str(data['cookie_flavor']).strip()
             price = float(data['price'])
-            marketing = float(data['marketing'])
+            marketing = float(data['marketing spend'])
 
             if model is None:
                 return jsonify({'message': 'Model not trained. Please train the model first.'}), 500
@@ -64,8 +64,30 @@ class CookieTrainingAPI(Resource):
             if len(predictions) < 10:
                 sample_data = [
                     {"cookie_flavor": "Chocolate Chip", "seasonality": "All Year", "price": 4.00, "marketing": 9, "customer_sentiment": 9, "predicted_success": 1},
-                    {"cookie_flavor": "Sugar Cookie", "seasonality": "All Year", "price": 3.75, "marketing": 8, "customer_sentiment": 8, "predicted_success": 1}
-                ]
+                    {"cookie_flavor": "Sugar Cookie", "seasonality": "All Year", "price": 3.75, "marketing": 8, "customer_sentiment": 8, "predicted_success": 1},
+                    {"cookie_flavor": "Chocolate Chip", "seasonality": "All Year", "price": 4.00, "marketing": 9, "customer_sentiment": 9, "predicted_success": 1},
+                    {"cookie_flavor": "Peanut Butter", "seasonality": "All Year", "price": 3.50, "marketing": 7, "customer_sentiment": 8, "predicted_success": 0.8},
+                    {"cookie_flavor": "Oatmeal Raisin", "seasonality": "All Year", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
+                    {"cookie_flavor": "Sugar Cookie", "seasonality": "Winter", "price": 2.75, "marketing": 6, "customer_sentiment": 6, "predicted_success": 0.65},
+                    {"cookie_flavor": "Chocolate Mint", "seasonality": "Winter", "price": 3.99, "marketing": 10, "customer_sentiment": 10, "predicted_success": 1},
+                    {"cookie_flavor": "Snickerdoodle", "seasonality": "All Year", "price": 3.25, "marketing": 5, "customer_sentiment": 5, "predicted_success": 0.5},
+                    {"cookie_flavor": "Lemon Drop", "seasonality": "Spring", "price": 3.50, "marketing": 7, "customer_sentiment": 8, "predicted_success": 0.75},
+                    {"cookie_flavor": "Double Chocolate", "seasonality": "All Year", "price": 4.25, "marketing": 9, "customer_sentiment": 9, "predicted_success": 0.9},
+                    {"cookie_flavor": "Gingerbread", "seasonality": "Winter", "price": 3.00, "marketing": 6, "customer_sentiment": 6, "predicted_success": 0.7},
+                    {"cookie_flavor": "Almond Joy", "seasonality": "All Year", "price": 4.00, "marketing": 8, "customer_sentiment": 8, "predicted_success": 0.8},
+                    {"cookie_flavor": "Carrot Cake", "seasonality": "Fall", "price": 3.25, "marketing": 5, "customer_sentiment": 4, "predicted_success": 0.45},
+                    {"cookie_flavor": "Coconut Cream", "seasonality": "Spring", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
+                    {"cookie_flavor": "Maple Pecan", "seasonality": "Fall", "price": 4.25, "marketing": 9, "customer_sentiment": 8, "predicted_success": 0.9},
+                    {"cookie_flavor": "Pumpkin Spice", "seasonality": "Fall", "price": 3.50, "marketing": 7, "customer_sentiment": 7, "predicted_success": 0.75},
+                    {"cookie_flavor": "Toffee Crunch", "seasonality": "All Year", "price": 3.99, "marketing": 9, "customer_sentiment": 9, "predicted_success": 0.95},
+                    {"cookie_flavor": "Mango", "seasonality": "Summer", "price": 3.50, "marketing": 7, "customer_sentiment": 6, "predicted_success": 0.75},
+                    {"cookie_flavor": "Blueberry", "seasonality": "Summer", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
+                    {"cookie_flavor": "Peach", "seasonality": "Summer", "price": 3.25, "marketing": 5, "customer_sentiment": 4, "predicted_success": 0.45},
+                    {"cookie_flavor": "Cherry", "seasonality": "Summer", "price": 3.50, "marketing": 7, "customer_sentiment": 6, "predicted_success": 0.75},
+                    {"cookie_flavor": "Raspberry", "seasonality": "Summer", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
+                    {"cookie_flavor": "Strawberry", "seasonality": "Summer", "price": 3.25, "marketing": 5, "customer_sentiment": 4, "predicted_success": 0.45},
+                    {"cookie_flavor": "Pineapple", "seasonality": "Summer", "price": 3.50, "marketing": 7, "customer_sentiment": 6, "predicted_success": 0.75},
+            ]
                 for entry in sample_data:
                     new_entry = CookieSalesPrediction(**entry)
                     new_entry.create()
