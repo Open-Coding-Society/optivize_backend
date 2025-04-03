@@ -16,7 +16,7 @@ venv.bak/
 venv_backend/*
 venv_backend/
 backup/
-
+.history
 # instance data, databases
 instance/volumes/
 instance/data.json

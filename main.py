@@ -55,7 +55,7 @@ from model.post import Post, initPosts
 from model.nestPost import NestPost, initNestPosts
 from model.vote import Vote, initVotes
 from model.flashcard import Flashcard, initFlashcards
-from model.studylog import initCookieSalesPredictions
+from model.studylog import CookieSalesPrediction
 from model.gradelog import initGradeLog
 from model.profiles import Profile, initProfiles
 from model.chatlog import ChatLog, initChatLogs
@@ -253,7 +253,7 @@ def generate_data():
     initDecks()
     initChatLogs()
     initProfiles()
-    initCookieSalesPredictions()
+    CookieSalesPrediction()
     initLeaderboard()
 
 

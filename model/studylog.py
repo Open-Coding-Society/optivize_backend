@@ -1,18 +1,22 @@
 from sqlalchemy.exc import IntegrityError
+from datetime import datetime
 from __init__ import app, db
 
 class CookieSalesPrediction(db.Model):
     """
-    Cookie Sales Prediction Model
+    Enhanced Cookie Sales Prediction Model with additional fields for the API
     
     Attributes:
-        id (int): Primary key for the prediction record.
-        cookie_flavor (str): Flavor of the cookie.
-        seasonality (str): Seasonality category (e.g., 'Holiday', 'Regular').
-        price (float): Price of the cookie.
-        marketing (int): Whether marketing is applied (1 for Yes, 0 for No).
-        customer_sentiment (float): Average customer sentiment score (0-1 scale).
-        predicted_success (bool): Prediction outcome (True for success, False for failure).
+        id (int): Primary key
+        cookie_flavor (str): Cookie flavor name
+        seasonality (str): Seasonality factor
+        price (float): Product price
+        marketing (int): Marketing score (1-10)
+        distribution_channels (float): Distribution channels score
+        predicted_success (bool): Whether prediction was successful
+        success_score (float): Prediction success score (0-100)
+        product_category (str): Product category
+        date_created (DateTime): When record was created
     """
     __tablename__ = 'cookie_sales_predictions'
 
@@ -21,54 +25,70 @@ class CookieSalesPrediction(db.Model):
     seasonality = db.Column(db.String(50), nullable=False)
     price = db.Column(db.Float, nullable=False)
     marketing = db.Column(db.Integer, nullable=False)
-    customer_sentiment = db.Column(db.Float, nullable=False)
+    distribution_channels = db.Column(db.Float, nullable=False)
     predicted_success = db.Column(db.Boolean, nullable=False)
+    success_score = db.Column(db.Float, nullable=False)
+    product_category = db.Column(db.String(50), nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def __init__(self, cookie_flavor, seasonality, price, marketing, customer_sentiment, predicted_success):
+    def __init__(self, cookie_flavor, seasonality, price, marketing, 
+                 distribution_channels, predicted_success, success_score, 
+                 product_category):
         self.cookie_flavor = cookie_flavor
         self.seasonality = seasonality
         self.price = price
         self.marketing = marketing
-        self.customer_sentiment = customer_sentiment
+        self.distribution_channels = distribution_channels
         self.predicted_success = predicted_success
+        self.success_score = success_score
+        self.product_category = product_category
 
     def create(self):
+        """Create a new prediction record"""
         try:
             db.session.add(self)
             db.session.commit()
             return self
         except IntegrityError as e:
             db.session.rollback()
-            print(f"IntegrityError while saving prediction: {e}")
+            app.logger.error(f"IntegrityError while saving prediction: {e}")
             return None
         except Exception as e:
             db.session.rollback()
-            print(f"Unexpected error while saving prediction: {e}")
+            app.logger.error(f"Unexpected error while saving prediction: {e}")
             return None
 
     def read(self):
+        """Return dictionary representation of the record"""
         return {
             "id": self.id,
             "cookie_flavor": self.cookie_flavor,
             "seasonality": self.seasonality,
             "price": self.price,
             "marketing": self.marketing,
-            "customer_sentiment": self.customer_sentiment,
-            "predicted_success": self.predicted_success
+            "distribution_channels": self.distribution_channels,
+            "predicted_success": self.predicted_success,
+            "success_score": self.success_score,
+            "product_category": self.product_category,
+            "date_created": self.date_created.isoformat() if self.date_created else None
         }
 
     def update(self, data):
+        """Update fields with provided dictionary"""
         for key, value in data.items():
-            setattr(self, key, value)
+            if hasattr(self, key):
+                setattr(self, key, value)
         db.session.commit()
         return self
 
     def delete(self):
+        """Delete this record"""
         db.session.delete(self)
         db.session.commit()
-
+        return None
 
 def initCookieSalesPredictions():
+    """Initialize the database table"""
     with app.app_context():
         db.create_all()
-        print("CookieSalesPrediction table initialized.")
+        app.logger.info("CookieSalesPrediction table initialized")

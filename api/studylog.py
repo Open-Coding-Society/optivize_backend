@@ -1,113 +1,390 @@
-import logging
-import joblib
-import numpy as np
-from pandas import DataFrame
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
 from flask_cors import CORS, cross_origin
-from sklearn.ensemble import RandomForestClassifier
-from model.studylog import CookieSalesPrediction
+import joblib
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_absolute_error
+import pandas as pd
+from model.studylog import CookieSalesPrediction, db
+from datetime import datetime
 
-# Initialize Blueprint and API
 cookie_api = Blueprint('cookie_api', __name__, url_prefix='/api')
 api = Api(cookie_api)
-CORS(cookie_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}}, supports_credentials=True)
 
-MODEL_PATH = "cookie_sales_model.pkl"
+# Enable CORS
+CORS(cookie_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
+     supports_credentials=True)
+
+# Product categories
+PRODUCT_CATEGORIES = {
+    'chocolate': {'base_price': 3.75, 'seasonality': 'year-round'},
+    'fruit': {'base_price': 3.50, 'seasonality': 'seasonal'},
+    'nut': {'base_price': 4.00, 'seasonality': 'year-round'},
+    'seasonal': {'base_price': 4.25, 'seasonality': 'holiday'},
+    'premium': {'base_price': 4.50, 'seasonality': 'year-round'}
+}
 
 # Load Model
 try:
-    model = joblib.load(MODEL_PATH)
-    print("✅ Model loaded successfully.")
-except Exception as e:
+    model = joblib.load("titanic_cookie_model.pkl")
+except FileNotFoundError:
     model = None
-    print(f"⚠️ Failed to load model: {e}")
+
+def determine_category(cookie_flavor):
+    """Simple category detection based on flavor keywords"""
+    flavor = cookie_flavor.lower()
+    if any(x in flavor for x in ['chocolate', 'brownie', 'fudge']):
+        return 'chocolate'
+    elif any(x in flavor for x in ['berry', 'lemon', 'apple']):
+        return 'fruit'
+    elif any(x in flavor for x in ['nut', 'almond', 'peanut']):
+        return 'nut'
+    elif any(x in flavor for x in ['pumpkin', 'peppermint', 'holiday']):
+        return 'seasonal'
+    return 'premium'
 
 class CookiePredictionAPI(Resource):
-    @cross_origin()
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
+        """Enhanced prediction with comprehensive insights"""
+        data = request.get_json()
+        
+        # Validation
+        required_fields = ['cookie_flavor', 'seasonality', 'price', 'marketing', 'distribution_channels']
+        if missing := [f for f in required_fields if f not in data]:
+            return {'message': 'Missing required fields', 'missing': missing}, 400
+
+        if not model:
+            return {'message': 'Model not trained. Train first with /api/train'}, 503
+
         try:
-            if not request.is_json:
-                return jsonify({'message': 'Invalid request: JSON data required'}), 400
+            # Prepare input
+            input_data = np.array([[
+                hash(data['cookie_flavor']) % 1000,
+                hash(data['seasonality']) % 1000,
+                float(data['price']),
+                int(data['marketing']),
+                float(data['distribution_channels'])
+            ]])
 
-            data = request.get_json()
-            print("📥 Received data:", data)
+            # Predict
+            success_score = max(0, min(100, float(model.predict(input_data)[0])))
+            is_success = success_score >= 70
+            category = determine_category(data['cookie_flavor'])
 
-            required_fields = ['cookie_flavor', 'price', 'marketing spend']
-            if not all(field in data for field in required_fields):
-                return jsonify({'message': 'Missing required fields'}), 400
+            # Get historical data for insights
+            historical_data = self._get_historical_insights(category)
+            price_stats = self._get_price_stats(category)
+            marketing_stats = self._get_marketing_stats()
 
-            cookie_flavor = str(data['cookie_flavor']).strip()
-            price = float(data['price'])
-            marketing = float(data['marketing spend'])
+            # Generate comprehensive insights
+            insights = {
+                'score_analysis': self._get_score_analysis(success_score),
+                'price_analysis': self._get_price_analysis(float(data['price']), price_stats, category),
+                'marketing_analysis': self._get_marketing_analysis(int(data['marketing']), marketing_stats),
+                'seasonality_analysis': self._get_seasonality_analysis(data['seasonality'], category),
+                'success_probability': self._calculate_success_probability(success_score),
+                'recommendations': self._generate_recommendations(data, success_score, category)
+            }
 
-            if model is None:
-                return jsonify({'message': 'Model not trained. Please train the model first.'}), 500
+            # Save to DB
+            prediction = CookieSalesPrediction(
+                cookie_flavor=data['cookie_flavor'],
+                seasonality=data['seasonality'],
+                price=float(data['price']),
+                marketing=int(data['marketing']),
+                distribution_channels=float(data['distribution_channels']),
+                predicted_success=is_success,
+                success_score=success_score,
+                product_category=category
+            )
+            
+            if not prediction.create():
+                raise Exception("Failed to save prediction")
 
-            input_data = np.array([[hash(cookie_flavor) % 1000, price, marketing]])
-            print("🔢 Input data for model prediction:", input_data)
+            return jsonify({
+                'success': True,
+                'score': round(success_score, 2),
+                'is_success': is_success,
+                'category': category,
+                'insights': insights,
+                'database_id': prediction.id
+            })
 
-            success_probability = model.predict_proba(input_data)[0][1] * 100
-            print(f"📊 Predicted success probability: {success_probability:.2f}%")
-
-            return jsonify({'success_probability': round(success_probability, 2)})
         except Exception as e:
-            print(f"❌ Error during prediction: {e}")
-            return jsonify({'message': f"An error occurred during prediction: {str(e)}"}), 500
+            return {'message': f'Prediction failed: {str(e)}'}, 500
+
+    def _get_historical_insights(self, category):
+        """Get historical data for the category"""
+        successful = CookieSalesPrediction.query.filter_by(
+            product_category=category,
+            predicted_success=True
+        ).all()
+        
+        unsuccessful = CookieSalesPrediction.query.filter_by(
+            product_category=category,
+            predicted_success=False
+        ).all()
+        
+        return {
+            'successful_count': len(successful),
+            'unsuccessful_count': len(unsuccessful),
+            'success_rate': len(successful) / (len(successful) + len(unsuccessful)) * 100 if (successful or unsuccessful) else None
+        }
+
+    def _get_price_stats(self, category):
+        """Calculate price statistics for category"""
+        prices = [p.price for p in CookieSalesPrediction.query.filter_by(
+            product_category=category,
+            predicted_success=True
+        ).all()] or [PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)]
+
+        return {
+            'average': round(float(np.mean(prices)), 2),
+            'min': round(float(min(prices)), 2),
+            'max': round(float(max(prices)), 2),
+            'std_dev': round(float(np.std(prices)), 2) if len(prices) > 1 else 0.5
+        }
+
+
+
+    def _get_marketing_stats(self):
+        """Calculate overall marketing stats"""
+        marketing_scores = [p.marketing for p in CookieSalesPrediction.query.filter_by(
+            predicted_success=True
+        ).all()] or [7]  # Default if no data
+        
+        return {
+            'average': round(float(np.mean(marketing_scores)), 1),
+            'min': int(min(marketing_scores)),
+            'max': int(max(marketing_scores))
+        }
+
+    def _get_score_analysis(self, score):
+        """Analyze the success score"""
+        ranges = [
+            (90, 100, "Exceptional", "Highly likely to succeed"),
+            (80, 89, "Very Strong", "Very high chance of success"),
+            (70, 79, "Strong", "Good chance of success"),
+            (60, 69, "Moderate", "Needs some improvements"),
+            (50, 59, "Marginal", "Significant improvements needed"),
+            (0, 49, "Poor", "High risk of failure")
+        ]
+        
+        for lower, upper, label, description in ranges:
+            if lower <= score <= upper:
+                return {
+                    'label': label,
+                    'range': f"{lower}-{upper}",
+                    'description': description,
+                    'risk_level': 100 - score
+                }
+
+    def _get_price_analysis(self, current_price, price_stats, category):
+        """Analyze price positioning"""
+        diff = current_price - price_stats['average']
+        diff_pct = (diff / price_stats['average']) * 100 if price_stats['average'] else 0
+        
+        if diff > price_stats['std_dev'] * 1.5:
+            position = "Premium"
+            advice = f"Priced {abs(diff_pct):.1f}% above category average"
+        elif diff > 0:
+            position = "High-end"
+            advice = f"Priced {abs(diff_pct):.1f}% above category average"
+        elif abs(diff) <= price_stats['std_dev']:
+            position = "Competitive"
+            advice = "Competitively priced for this category"
+        else:
+            position = "Value"
+            advice = f"Priced {abs(diff_pct):.1f}% below category average"
+        
+        return {
+            'current_price': current_price,
+            'category_average': price_stats['average'],
+            'position': position,
+            'price_difference': round(diff, 2),
+            'percentage_difference': round(diff_pct, 1),
+            'advice': advice,
+            'price_range': {
+                'min': price_stats['min'],
+                'max': price_stats['max']
+            }
+        }
+
+    def _get_marketing_analysis(self, current_marketing, marketing_stats):
+        """Analyze marketing effectiveness"""
+        diff = current_marketing - marketing_stats['average']
+        
+        if current_marketing >= marketing_stats['average'] + 2:
+            rating = "Excellent"
+            advice = "More than sufficient marketing support"
+        elif current_marketing >= marketing_stats['average']:
+            rating = "Good"
+            advice = "Adequate marketing investment"
+        else:
+            rating = "Below Average"
+            advice = f"Consider increasing by {round(abs(diff), 1)} points"
+        
+        return {
+            'current': current_marketing,
+            'average_successful': marketing_stats['average'],
+            'rating': rating,
+            'difference': round(diff, 1),
+            'advice': advice,
+            'effective_range': {
+                'min': marketing_stats['min'],
+                'max': marketing_stats['max']
+            }
+        }
+
+    def _get_seasonality_analysis(self, current_season, category):
+        """Analyze seasonality match"""
+        expected_season = PRODUCT_CATEGORIES.get(category, {}).get('seasonality', 'year-round')
+        
+        if expected_season == 'year-round':
+            return {
+                'match': True,
+                'message': "This category performs well year-round"
+            }
+        
+        is_match = expected_season.lower() in current_season.lower()
+        
+        return {
+            'match': is_match,
+            'current_season': current_season,
+            'recommended_season': expected_season,
+            'message': "Perfect season match" if is_match else f"Best season: {expected_season}",
+            'impact': "10-15% potential uplift" if is_match else "Possible 10-15% lower performance"
+        }
+
+    def _calculate_success_probability(self, score):
+        """Calculate probability ranges"""
+        base_prob = score / 100
+        lower = max(0, base_prob - 0.15)
+        upper = min(1, base_prob + 0.15)
+        return {
+            'range': f"{int(lower*100)}-{int(upper*100)}%",
+            'confidence': "High" if (upper-lower) < 0.2 else "Medium"
+        }
+
+    def _generate_recommendations(self, data, score, category):
+        """Generate actionable recommendations"""
+        recs = []
+        
+        # General recommendations based on score
+        if score >= 80:
+            recs.append("Proceed with full-scale launch")
+            recs.append("Consider premium packaging and pricing")
+        elif score >= 70:
+            recs.append("Proceed with standard launch")
+            recs.append("Run targeted marketing campaign")
+        elif score >= 60:
+            recs.append("Conduct small test market first")
+            recs.append("Optimize product before full launch")
+        else:
+            recs.append("Reformulate product concept")
+            recs.append("Conduct market research")
+        
+        # Price recommendations
+        price = float(data['price'])
+        category_data = PRODUCT_CATEGORIES.get(category, {})
+        if price > category_data.get('base_price', 4.0) * 1.2:
+            recs.append(f"Consider reducing price to ${category_data.get('base_price', 4.0) * 1.1:.2f} (+10%)")
+        elif price < category_data.get('base_price', 4.0) * 0.9:
+            recs.append(f"Consider premium version at ${category_data.get('base_price', 4.0):.2f}")
+        
+        # Marketing recommendations
+        marketing = int(data['marketing'])
+        if marketing < 6:
+            recs.append("Increase marketing budget by 20-30%")
+        elif marketing > 8:
+            recs.append("Maintain high marketing levels")
+        
+        # Seasonal recommendations
+        if 'seasonal' in category.lower():
+            recs.append(f"Launch 2-3 weeks before {PRODUCT_CATEGORIES[category]['seasonality']} season")
+        
+        return recs
 
 class CookieTrainingAPI(Resource):
-    @cross_origin()
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
+        data = request.get_json()
+        
+        if not data or 'samples' not in data:
+            return {'message': 'Missing samples data'}, 400
+
+        valid_samples = []
+        required_fields = ['cookie_flavor', 'seasonality', 'price', 
+                         'marketing', 'distribution_channels', 'success_score']
+        
+        for sample in data['samples']:
+            if not all(field in sample for field in required_fields):
+                continue
+            
+            try:
+                category = determine_category(sample['cookie_flavor'])
+                success_score = float(sample['success_score'])
+                
+                prediction = CookieSalesPrediction(
+                    cookie_flavor=sample['cookie_flavor'],
+                    seasonality=sample['seasonality'],
+                    price=float(sample['price']),
+                    marketing=int(sample['marketing']),
+                    distribution_channels=float(sample['distribution_channels']),
+                    predicted_success=success_score >= 70,
+                    success_score=success_score,
+                    product_category=category
+                )
+                
+                if prediction.create():
+                    valid_samples.append({
+                        'flavor_hash': hash(sample['cookie_flavor']) % 1000,
+                        'season_hash': hash(sample['seasonality']) % 1000,
+                        'price': float(sample['price']),
+                        'marketing': int(sample['marketing']),
+                        'distribution': float(sample['distribution_channels']),
+                        'success_score': success_score
+                    })
+            except Exception as e:
+                print(f"Skipping invalid sample: {str(e)}")
+
+        if len(valid_samples) < 5:
+            return {'message': f'Insufficient data (need 5, got {len(valid_samples)})'}, 400
+
         try:
-            predictions = CookieSalesPrediction.query.all()
-
-            if len(predictions) < 10:
-                sample_data = [
-                    {"cookie_flavor": "Chocolate Chip", "seasonality": "All Year", "price": 4.00, "marketing": 9, "customer_sentiment": 9, "predicted_success": 1},
-                    {"cookie_flavor": "Sugar Cookie", "seasonality": "All Year", "price": 3.75, "marketing": 8, "customer_sentiment": 8, "predicted_success": 1},
-                    {"cookie_flavor": "Chocolate Chip", "seasonality": "All Year", "price": 4.00, "marketing": 9, "customer_sentiment": 9, "predicted_success": 1},
-                    {"cookie_flavor": "Peanut Butter", "seasonality": "All Year", "price": 3.50, "marketing": 7, "customer_sentiment": 8, "predicted_success": 0.8},
-                    {"cookie_flavor": "Oatmeal Raisin", "seasonality": "All Year", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
-                    {"cookie_flavor": "Sugar Cookie", "seasonality": "Winter", "price": 2.75, "marketing": 6, "customer_sentiment": 6, "predicted_success": 0.65},
-                    {"cookie_flavor": "Chocolate Mint", "seasonality": "Winter", "price": 3.99, "marketing": 10, "customer_sentiment": 10, "predicted_success": 1},
-                    {"cookie_flavor": "Snickerdoodle", "seasonality": "All Year", "price": 3.25, "marketing": 5, "customer_sentiment": 5, "predicted_success": 0.5},
-                    {"cookie_flavor": "Lemon Drop", "seasonality": "Spring", "price": 3.50, "marketing": 7, "customer_sentiment": 8, "predicted_success": 0.75},
-                    {"cookie_flavor": "Double Chocolate", "seasonality": "All Year", "price": 4.25, "marketing": 9, "customer_sentiment": 9, "predicted_success": 0.9},
-                    {"cookie_flavor": "Gingerbread", "seasonality": "Winter", "price": 3.00, "marketing": 6, "customer_sentiment": 6, "predicted_success": 0.7},
-                    {"cookie_flavor": "Almond Joy", "seasonality": "All Year", "price": 4.00, "marketing": 8, "customer_sentiment": 8, "predicted_success": 0.8},
-                    {"cookie_flavor": "Carrot Cake", "seasonality": "Fall", "price": 3.25, "marketing": 5, "customer_sentiment": 4, "predicted_success": 0.45},
-                    {"cookie_flavor": "Coconut Cream", "seasonality": "Spring", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
-                    {"cookie_flavor": "Maple Pecan", "seasonality": "Fall", "price": 4.25, "marketing": 9, "customer_sentiment": 8, "predicted_success": 0.9},
-                    {"cookie_flavor": "Pumpkin Spice", "seasonality": "Fall", "price": 3.50, "marketing": 7, "customer_sentiment": 7, "predicted_success": 0.75},
-                    {"cookie_flavor": "Toffee Crunch", "seasonality": "All Year", "price": 3.99, "marketing": 9, "customer_sentiment": 9, "predicted_success": 0.95},
-                    {"cookie_flavor": "Mango", "seasonality": "Summer", "price": 3.50, "marketing": 7, "customer_sentiment": 6, "predicted_success": 0.75},
-                    {"cookie_flavor": "Blueberry", "seasonality": "Summer", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
-                    {"cookie_flavor": "Peach", "seasonality": "Summer", "price": 3.25, "marketing": 5, "customer_sentiment": 4, "predicted_success": 0.45},
-                    {"cookie_flavor": "Cherry", "seasonality": "Summer", "price": 3.50, "marketing": 7, "customer_sentiment": 6, "predicted_success": 0.75},
-                    {"cookie_flavor": "Raspberry", "seasonality": "Summer", "price": 3.75, "marketing": 8, "customer_sentiment": 7, "predicted_success": 0.85},
-                    {"cookie_flavor": "Strawberry", "seasonality": "Summer", "price": 3.25, "marketing": 5, "customer_sentiment": 4, "predicted_success": 0.45},
-                    {"cookie_flavor": "Pineapple", "seasonality": "Summer", "price": 3.50, "marketing": 7, "customer_sentiment": 6, "predicted_success": 0.75},
-            ]
-                for entry in sample_data:
-                    new_entry = CookieSalesPrediction(**entry)
-                    new_entry.create()
-                predictions = CookieSalesPrediction.query.all()
-
-            X = np.array([[hash(p.cookie_flavor) % 1000, p.price, p.marketing] for p in predictions])
-            y = np.array([p.predicted_success for p in predictions])
+            df = pd.DataFrame(valid_samples)
+            X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
+            y = df['success_score']
 
             global model
-            model = RandomForestClassifier(n_estimators=100, random_state=42)
+            model = RandomForestRegressor(n_estimators=150, random_state=42)
             model.fit(X, y)
+            joblib.dump(model, "titanic_cookie_model.pkl")
 
-            joblib.dump(model, MODEL_PATH)
-            print("✅ Model trained and saved successfully.")
+            y_pred = model.predict(X)
+            return jsonify({
+                'success': True,
+                'samples_used': len(valid_samples),
+                'r2_score': round(r2_score(y, y_pred), 4),
+                'mae': round(mean_absolute_error(y, y_pred), 2),
+                'categories_trained': len(set(p.product_category for p in CookieSalesPrediction.query.all()))
+            })
 
-            return jsonify({'message': 'Model trained successfully.'})
         except Exception as e:
-            print(f"❌ Error during training: {e}")
-            return jsonify({'message': f"An error occurred during training: {str(e)}"}), 500
+            return {'message': f'Training failed: {str(e)}'}, 500
 
-# Add resources to API
+class CookieHistoryAPI(Resource):
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    def get(self):
+        try:
+            predictions = CookieSalesPrediction.query.order_by(CookieSalesPrediction.date_created.desc()).all()
+            return jsonify([p.read() for p in predictions])
+        except Exception as e:
+            return {'message': f'Failed to fetch history: {str(e)}'}, 500
+
+# Register endpoints
 api.add_resource(CookiePredictionAPI, '/predict')
 api.add_resource(CookieTrainingAPI, '/train')
+api.add_resource(CookieHistoryAPI, '/history')
