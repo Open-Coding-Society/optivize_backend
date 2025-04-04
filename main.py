@@ -338,7 +338,7 @@ def ai_homework_help():
         return jsonify({"error": "No question provided."}), 400
     try:
         response = model.generate_content(
-            f"You are the Optivize Assitant, also known as OptiBot. Although you are helpful with everything, you are a customer service chatbot for a business. "
+            f"You are the Optivize Assitant, also known as OptiBot. Although you are helpful with everything, you are a customer service chatbot for a business that needs help with consulting and improving efficiency in the AI age. "
             f"Despite this, you can answer any question.\n"
             f"Here is your prompt: {question}"
         )
