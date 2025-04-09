@@ -12,6 +12,7 @@ from flask_login import current_user, login_user, logout_user
 from flask.cli import AppGroup
 from flask_login import current_user, login_required
 from flask import current_app
+from flask import g
 from werkzeug.security import generate_password_hash
 import shutil
 from flask_cors import CORS  # Import CORS
@@ -19,6 +20,7 @@ from flask import Blueprint, jsonify
 from api.flashcard import flashcard_api
 from model.channel import Channel
 from api.deck import deck_api
+import numpy as np
 import random
 
 
@@ -327,13 +329,98 @@ def restore_data_command():
 
 app.cli.add_command(custom_cli)
 
+def list_all_flashcards():
+    flashcards = Flashcard.query.all()
+    if not flashcards:
+        return "No flashcards found."
+    return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
+
+
+
+
+def list_user_flashcards():
+    user_id = g.current_user.id
+    flashcards = Flashcard.query.filter_by(_user_id=user_id).all()
+    if not flashcards:
+        return "You don't have any flashcards yet."
+    return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
+
+
+
+
+def handle_internal_intents(question: str):
+    q = question.lower()
+
+    # Flashcard listing (broad match)
+    if "list" in q and "flashcard" in q:
+        return list_all_flashcards()
+
+    if "flashcard" in q:
+        if "history" in q:
+            return get_flashcards_by_keyword("history")
+        if "photosynthesis" in q:
+            return get_flashcards_by_keyword("photosynthesis")
+        if "update" in q and "photosynthesis" in q:
+            return update_flashcard("Photosynthesis", "Updated content here")
+
+    # Cookie performance
+    if "how well" in q and "cookie" in q:
+        if "seasonal" in q:
+            return get_cookie_stats_by_category("seasonal")
+        elif "nut" in q:
+            return get_cookie_stats_by_category("nut")
+
+    # Pricing
+    if "average price" in q and "nut" in q:
+        stats = get_cookie_price_stats("nut")
+        return f"Average price for nut cookies is ${stats['average']}"
+
+    return None
+
+def get_cookie_stats_by_category(category):
+    success = CookieSalesPrediction.query.filter_by(product_category=category, predicted_success=True).count()
+    total = CookieSalesPrediction.query.filter_by(product_category=category).count()
+    if total == 0:
+        return f"No data for '{category}' cookies."
+    return f"{category.capitalize()} cookies succeed {round(success / total * 100, 1)}% of the time."
+
+def get_cookie_price_stats(category):
+    prices = [p.price for p in CookieSalesPrediction.query.filter_by(
+        product_category=category,
+        predicted_success=True
+    ).all()]
+    avg = round(np.mean(prices), 2) if prices else "N/A"
+    return {"average": avg}
+
+def get_flashcards_by_keyword(keyword):
+    flashcards = Flashcard.query.filter(Flashcard._content.ilike(f"%{keyword}%")).all()
+    if not flashcards:
+        return f"No flashcards found for keyword '{keyword}'."
+    return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
+
+
+def update_flashcard(title, new_content):
+    flashcard = Flashcard.query.filter_by(_title=title).first()
+    if not flashcard:
+        return f"Flashcard titled '{title}' not found."
+    flashcard._content = new_content
+    db.session.commit()
+    return f"Flashcard '{title}' updated successfully."
+
 
 genai.configure(api_key="AIzaSyD7DQZlIvCo79fjHjUBYrApmFkRKZ12HSE")
 model = genai.GenerativeModel('gemini-2.0-flash')
 @app.route('/api/ai/help', methods=['POST'])
 def ai_homework_help():
     data = request.get_json()
-    question = data.get("question", "")
+    question = data.get("question", "").lower()
+
+    # Check for intents
+    response_text = handle_internal_intents(question)
+    if response_text:
+        new_entry = ChatLog(question=question, response=response_text)
+        new_entry.create()
+        return jsonify({"response": response_text}), 200
     if not question:
         return jsonify({"error": "No question provided."}), 400
     try:
