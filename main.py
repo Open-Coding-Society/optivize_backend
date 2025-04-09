@@ -13,6 +13,7 @@ from flask.cli import AppGroup
 from flask_login import current_user, login_required
 from flask import current_app
 from flask import g
+from api.jwt_authorize import token_required
 from werkzeug.security import generate_password_hash
 import shutil
 from flask_cors import CORS  # Import CORS
@@ -338,6 +339,7 @@ def list_all_flashcards():
 
 
 
+
 def list_user_flashcards():
     user_id = g.current_user.id
     flashcards = Flashcard.query.filter_by(_user_id=user_id).all()
@@ -345,52 +347,68 @@ def list_user_flashcards():
         return "You don't have any flashcards yet."
     return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
 
+def list_all_user_products():
+    user_id = g.current_user.id
+    user_name = f"User #{user_id}"
 
+    items = Flashcard.query.filter_by(_user_id=user_id).all()
+    groups = Deck.query.filter_by(_user_id=user_id).all()
+
+    response_lines = [f"{user_name}'s products are:\n"]
+
+    if not items:
+        response_lines.append("No items found.")
+        return "\n".join(response_lines)
+
+    for item in items:
+        data = item.read()
+        group = Deck.query.get(item._deck_id) if hasattr(item, '_deck_id') and item._deck_id else None
+        group_name = group.title if group else "None"
+
+        response_lines.append(f"Group name: {group_name}")
+        response_lines.append(f"Item name: {data['title']}")
+        response_lines.append("Number of items: 1")
+        response_lines.append(f"Description: {data['content']}\n")
+
+    return "\n".join(response_lines)
+
+
+def get_item_group(item_title):
+    item = Flashcard.query.filter_by(_title=item_title).first()
+    if not item:
+        return f"No item titled '{item_title}' found."
+
+    group = Deck.query.get(item._deck_id) if item._deck_id else None
+    if group:
+        return f"The item '{item_title}' belongs to the group '{group.title}'."
+    return f"The item '{item_title}' is not assigned to any group."
 
 
 def handle_internal_intents(question: str):
     q = question.lower()
 
-    # Flashcard listing (broad match)
-    if "list" in q and "flashcard" in q:
-        return list_all_flashcards()
+    # Keywords we'll match
+    keywords_items = ["list", "show", "give", "state", "display"]
+    products_alias = ["item", "product", "flashcard"]
+    decks_alias = ["group", "deck"]
 
-    if "flashcard" in q:
-        if "history" in q:
-            return get_flashcards_by_keyword("history")
-        if "photosynthesis" in q:
-            return get_flashcards_by_keyword("photosynthesis")
-        if "update" in q and "photosynthesis" in q:
-            return update_flashcard("Photosynthesis", "Updated content here")
+    # Check for variations
+    if any(k in q for k in keywords_items) and any(p in q for p in products_alias + decks_alias):
+        return list_all_user_products()
 
-    # Cookie performance
-    if "how well" in q and "cookie" in q:
-        if "seasonal" in q:
-            return get_cookie_stats_by_category("seasonal")
-        elif "nut" in q:
-            return get_cookie_stats_by_category("nut")
+    if "2nd product" in q or "second product" in q:
+        flashcards = Flashcard.query.filter_by(_user_id=g.current_user.id).all()
+        if len(flashcards) >= 2:
+            fc = flashcards[1].read()
+            return f"Your second product is:\n- {fc['title']}: {fc['content']}"
+        return "You don't have a second product."
 
-    # Pricing
-    if "average price" in q and "nut" in q:
-        stats = get_cookie_price_stats("nut")
-        return f"Average price for nut cookies is ${stats['average']}"
+    if "what item is this group in" in q:
+        # Simulated interpretation - improve later with NLP
+        return "Please specify which group (deck) you mean so I can tell you the items (flashcards) in it."
 
     return None
 
-def get_cookie_stats_by_category(category):
-    success = CookieSalesPrediction.query.filter_by(product_category=category, predicted_success=True).count()
-    total = CookieSalesPrediction.query.filter_by(product_category=category).count()
-    if total == 0:
-        return f"No data for '{category}' cookies."
-    return f"{category.capitalize()} cookies succeed {round(success / total * 100, 1)}% of the time."
-
-def get_cookie_price_stats(category):
-    prices = [p.price for p in CookieSalesPrediction.query.filter_by(
-        product_category=category,
-        predicted_success=True
-    ).all()]
-    avg = round(np.mean(prices), 2) if prices else "N/A"
-    return {"average": avg}
 
 def get_flashcards_by_keyword(keyword):
     flashcards = Flashcard.query.filter(Flashcard._content.ilike(f"%{keyword}%")).all()
@@ -411,6 +429,7 @@ def update_flashcard(title, new_content):
 genai.configure(api_key="AIzaSyD7DQZlIvCo79fjHjUBYrApmFkRKZ12HSE")
 model = genai.GenerativeModel('gemini-2.0-flash')
 @app.route('/api/ai/help', methods=['POST'])
+@token_required()
 def ai_homework_help():
     data = request.get_json()
     question = data.get("question", "").lower()
