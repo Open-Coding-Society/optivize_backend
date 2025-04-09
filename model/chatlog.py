@@ -62,6 +62,14 @@ class ChatLog(db.Model):
             logging.warning(f"IntegrityError: Could not update chat log with ID '{self.id}'.")
             return None
         return self
+    def delete(self):
+        try:
+            db.session.delete(self)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise e
+
     @staticmethod
     def restore(data):
         """
