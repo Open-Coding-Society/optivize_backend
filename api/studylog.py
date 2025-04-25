@@ -68,9 +68,6 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            global model
-            if model is None:
-              model = joblib.load("titanic_cookie_model.pkl")
             # Predict
             raw_score = model.predict(input_data)[0]
             success_score = float(raw_score) * 100 if raw_score <= 1 else float(raw_score)  # << SCALE IT
