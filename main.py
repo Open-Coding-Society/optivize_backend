@@ -434,29 +434,47 @@ def ai_homework_help():
     data = request.get_json()
     question = data.get("question", "").lower()
 
-    # Check for intents
+    # Check for internal intents first
     response_text = handle_internal_intents(question)
     if response_text:
         new_entry = ChatLog(question=question, response=response_text)
         new_entry.create()
         return jsonify({"response": response_text}), 200
+
     if not question:
         return jsonify({"error": "No question provided."}), 400
+
     try:
-        response = model.generate_content(
-            f"You are the Optivize Assitant, also known as OptiBot. Although you are helpful with everything, you are a customer service chatbot for a business that needs help with consulting and improving efficiency in the AI age. "
-            f"Despite this, you can answer any question.\n"
-            f"Here is your prompt: {question}"
+        # Fetch user's flashcards and groups
+        user_id = g.current_user.id
+        flashcards = Flashcard.query.filter_by(_user_id=user_id).all()
+        decks = Deck.query.filter_by(_user_id=user_id).all()
+
+        # Prepare data string for the AI prompt
+        flashcard_info = "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards]) or "No items."
+        deck_info = "\n".join([f"- {deck.title}" for deck in decks]) or "No groups."
+
+        # Inject data into AI prompt
+        ai_prompt = (
+            f"You are the Optivize Assistant, also known as OptiBot. The user has the following products:\n"
+            f"Groups:\n{deck_info}\n\n"
+            f"Items:\n{flashcard_info}\n\n"
+            f"The user asks: {question}\n"
+            f"Answer the question using the data above if it helps."
         )
+
+        response = model.generate_content(ai_prompt)
         response_text = response.text
-        # Save to database
+
+        # Save to chat log
         new_entry = ChatLog(question=question, response=response_text)
         new_entry.create()
         return jsonify({"response": response_text}), 200
+
     except Exception as e:
-        print("error!")
-        print(e)
+        print("error!", e)
         return jsonify({"error": str(e)}), 500
+
 @app.route('/api/ai/update', methods=['PUT'])
 def update_ai_question():
     data = request.get_json()
