@@ -69,7 +69,9 @@ class CookiePredictionAPI(Resource):
             ]])
 
             # Predict
-            success_score = max(0, min(100, float(model.predict(input_data)[0])))
+            raw_score = model.predict(input_data)[0]
+            clamped_score = min(max(raw_score, 0), 1) 
+            success_score = round(clamped_score * 100, 2)
             is_success = success_score >= 70
             category = determine_category(data['cookie_flavor'])
 
