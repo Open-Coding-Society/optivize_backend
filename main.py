@@ -279,7 +279,7 @@ def extract_data():
         data['decks'] = [deck.read() for deck in Deck.query.all()]
 #        data['channels'] = [channel.read() for channel in Channel.query.all()]
     #    data['posts'] = [post.read() for post in Post.query.all()]
-        data['studylogs'] = [log.read() for log in StudyLog.query.all()]
+        data['studylogs'] = [log.read() for log in CookieSalesPrediction.query.all()]
         data['profiles'] = [log.read() for log in Profile.query.all()]
         data['flashcards'] = [log.read() for log in Flashcard.query.all()]
         data['chatlog'] = [log.read() for log in ChatLog.query.all()]
@@ -310,7 +310,7 @@ def restore_data(data):
         _ = Deck.restore(data['decks'])
         # _ = Channel.restore(data['channels'])
         #  _ = Post.restore(data['posts'])
-        _ = StudyLog.restore(data['studylogs'])
+        _ = CookieSalesPrediction.restore(data['studylogs'])
         _ = GradeLog.restore(data['gradelog'])
         _ = Profile.restore(data['profiles'])
         _ = Flashcard.restore(data['flashcards'])
