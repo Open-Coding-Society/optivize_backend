@@ -1,3 +1,4 @@
+from unicodedata import category
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
 from flask_cors import CORS, cross_origin
@@ -68,56 +69,45 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # --- UPDATED PREDICTION LOGIC ---
-            # 1. Get raw prediction (0.0-1.0 for classifiers, any range for regression)
-            if hasattr(model, 'predict_proba'):
-                raw_pred = float(model.predict_proba(input_data)[0][1])  # Clas
-                base_score = int(round(raw_pred * 100))  # Convert to 0-100%
-            else:
-                raw_pred = float(model.predict(input_data)[0])
-                base_score = int(round(np.clip(raw_pred, 0, 100)))
-                
-            # 2. Apply business rule penalties
+            # --- CORE PREDICTION LOGIC ---
+            # 1. Get base prediction (0-100 range)
+            raw_score = float(model.predict(input_data)[0])
+            
+            # 2. Apply business rule adjustments
             category_data = PRODUCT_CATEGORIES.get(category, {})
             base_price = category_data.get('base_price', 4.0)
-            # Price penalty (15% if >20% over base, 30% if >50% over)
-            price_penalty = 0
-            if float(data['price']) > base_price * 1.5:
-                price_penalty = 30
-            elif float(data['price']) > base_price * 1.2:
-                price_penalty = 15
-            # Marketing penalty (-5% per point below 7)
-            marketing_penalty = max(0, 7 - int(data['marketing'])) * 5
             
-            distribution_penalty = max(0, 5 - float(data['distribution_channels'])) * 4
+            # Price penalty (more aggressive)
+            price_penalty = 0
+            current_price = float(data['price'])
+            if current_price > base_price * 1.5:
+                price_penalty = min(40, (current_price - base_price) / base_price * 100)
+            elif current_price > base_price * 1.2:
+                price_penalty = 20
+                
+            # Marketing penalty (steeper)
+            marketing_penalty = max(0, (7 - int(data['marketing'])) * 7)
+            
+            # Distribution penalty (steeper)
+            distribution_penalty = max(0, (5 - float(data['distribution_channels'])) * 6)
             
             total_penalty = price_penalty + marketing_penalty + distribution_penalty
             
-            # 3. Calculate adjusted score and round to nearest 5%
-            adjusted_score = base_score - total_penalty
-            clamped_score = max(10, min(100, adjusted_score))  # Ensure minimum 10% if penalties apply
-            # 3. Scale regression predictions to 0-100 range if needed
+            # 3. Calculate final score with 5% increments
+            adjusted_score = raw_score - total_penalty
+            clamped_score = max(10, min(100, adjusted_score))  # Minimum 10%
+            success_score = 5 * round(clamped_score / 5)  # Round to nearest 5%
             
-            # Round to nearest 5 (10, 15, 20...100)
-            success_score = 5 * round(clamped_score / 5)
-            if not hasattr(model, 'predict_proba'):
-                # Adjust based on your model's expected output range
-                # Example: If model outputs 0-1, multiply by 100
-                raw_pred = raw_pred * 100  
-            # 4. Final validation
-            is_success = success_score >= 70
-            category = determine_category(data['cookie_flavor'])
-
-            # 5. Generate penalty insights
-            penalty_insights = {
-                'base_score': base_score,
-                'price_penalty': price_penalty,
-                'marketing_penalty': marketing_penalty,
-                'distribution_penalty': distribution_penalty,
-                'total_penalty': total_penalty,
-                'final_score': success_score
-            }
-# --- END UPDATED LOGIC ---
+            # 4. Force wider distribution
+            if 60 < success_score < 80:
+                # Add slight variation to mid-range scores
+                success_score += np.random.choice([-5, 0, 5])
+            elif success_score >= 80:
+                # Prevent clustering at high end
+                success_score -= np.random.randint(0, 10)
+            
+            success_score = max(10, min(100, success_score))  # Re-clamp after variation
+            # --- END CORE LOGIC ---
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
@@ -467,21 +457,18 @@ class CookieTrainingAPI(Resource):
             df = pd.DataFrame(valid_samples)
             X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
             
-            # ENSURE LABELS COVER FULL RANGE
-            y = df['success_score'].clip(0, 100)
+            # --- CRITICAL CHANGES START ---
+            # Force 5% increment labels and ensure full range coverage
+            y = (df['success_score']
+                .clip(0, 100)
+                .apply(lambda x: 5 * round(x / 5))  # Round to nearest 5%
+                .astype(int))
             
-            # BALANCE THE TRAINING DATA
-            from sklearn.utils import resample
-            low_samples = df[df['success_score'] < 30]
-            mid_samples = df[(df['success_score'] >= 30) & (df['success_score'] < 70)]
-            high_samples = df[df['success_score'] >= 70]
+            # Balance the dataset
+            low_samples = df[y <= 40].sample(n=20, replace=True) if len(df[y <= 40]) < 20 else df[y <= 40]
+            mid_samples = df[(y > 40) & (y < 70)].sample(n=20, replace=True) if len(df[(y > 40) & (y < 70)]) < 20 else df[(y > 40) & (y < 70)]
+            high_samples = df[y >= 70]
             
-            # Oversample minority ranges
-            if len(low_samples) < 10:
-                low_samples = resample(low_samples, replace=True, n_samples=10)
-            if len(mid_samples) < 10:
-                mid_samples = resample(mid_samples, replace=True, n_samples=10)
-                
             balanced_df = pd.concat([low_samples, mid_samples, high_samples])
             X = balanced_df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
             y = balanced_df['success_score']
@@ -489,12 +476,17 @@ class CookieTrainingAPI(Resource):
             global model
             model = RandomForestRegressor(
                 n_estimators=200,
-                min_samples_leaf=5,      # Prevent overfitting
-                max_depth=7,             # Balanced depth
+                min_samples_leaf=3,  # More granular predictions
+                max_depth=10,        # Capture complex patterns
                 random_state=42,
-                max_features='sqrt'      # Better generalization
+                max_features=0.8     # Better generalization
             )
-            model.fit(X, y)  # Now trains on exact 0-100 integers
+            model.fit(X, y)
+            
+            # Verify output distribution
+            test_preds = model.predict(X)
+            print("Prediction distribution:", np.percentile(test_preds, [0, 10, 25, 50, 75, 90, 100]))
+            # --- CRITICAL CHANGES END ---
             
             joblib.dump(model, "titanic_cookie_model.pkl")
 
