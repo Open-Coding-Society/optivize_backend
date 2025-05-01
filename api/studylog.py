@@ -63,13 +63,17 @@ class CookiePredictionAPI(Resource):
 
         try:
             
-            # 1. First determine category and get base price
-            category = determine_category(data['cookie_flavor'])
-            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)
-            # 2. Prepare input data with properly scoped variables
-            price = float(data['price'])
-            marketing = int(data['marketing'])
+            # 1. EXTRACT ALL INPUTS FIRST
+            cookie_flavor = data['cookie_flavor']
+            seasonality = data['seasonality']
+            price = float(data['price'])  # Defined here
+            marketing = int(data['marketing'])  # Defined here
             distribution = float(data['distribution_channels'])
+            # 2. DETERMINE CATEGORY AND BASE PRICE
+            category = determine_category(cookie_flavor)
+            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)
+            
+            
             
             # Prepare input
             input_data = np.array([[
