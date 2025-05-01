@@ -68,30 +68,56 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # GET PREDICTION WITH CONFIDENCE
+            # --- UPDATED PREDICTION LOGIC ---
+            # 1. Get raw prediction (0.0-1.0 for classifiers, any range for regression)
             if hasattr(model, 'predict_proba'):
-                # For classifiers
-                proba = model.predict_proba(input_data)[0]
-                prob_success = proba[1]  # Probability of success class
-                confidence = np.max(proba) - np.min(proba)  # 0-1 scale
-                success_score = int(round(prob_success * 100))
+                raw_pred = float(model.predict_proba(input_data)[0][1])  # Clas
+                base_score = int(round(raw_pred * 100))  # Convert to 0-100%
             else:
-                # For regression - use quantile predictions
-                preds = [tree.predict(input_data)[0] for tree in model.estimators_]
-                success_score = int(round(np.percentile(preds, 50)))  # Median prediction
-                confidence = (np.percentile(preds, 75) - np.percentile(preds, 25)) / 100
+                raw_pred = float(model.predict(input_data)[0])
+                base_score = int(round(np.clip(raw_pred, 0, 100)))
+                
+            # 2. Apply business rule penalties
+            category_data = PRODUCT_CATEGORIES.get(category, {})
+            base_price = category_data.get('base_price', 4.0)
+            # Price penalty (15% if >20% over base, 30% if >50% over)
+            price_penalty = 0
+            if float(data['price']) > base_price * 1.5:
+                price_penalty = 30
+            elif float(data['price']) > base_price * 1.2:
+                price_penalty = 15
+            # Marketing penalty (-5% per point below 7)
+            marketing_penalty = max(0, 7 - int(data['marketing'])) * 5
             
-            # APPLY CONFIDENCE-BASED ADJUSTMENT
-            if confidence < 0.3:  # Low confidence
-                success_score = max(20, min(80, success_score))  # Pull toward middle
-            success_score = max(0, min(100, success_score))
+            distribution_penalty = max(0, 5 - float(data['distribution_channels'])) * 4
+            
+            total_penalty = price_penalty + marketing_penalty + distribution_penalty
+            
+            # 3. Calculate adjusted score and round to nearest 5%
+            adjusted_score = base_score - total_penalty
+            clamped_score = max(10, min(100, adjusted_score))  # Ensure minimum 10% if penalties apply
+            # 3. Scale regression predictions to 0-100 range if needed
+            
+            # Round to nearest 5 (10, 15, 20...100)
+            success_score = 5 * round(clamped_score / 5)
+            if not hasattr(model, 'predict_proba'):
+                # Adjust based on your model's expected output range
+                # Example: If model outputs 0-1, multiply by 100
+                raw_pred = raw_pred * 100  
+            # 4. Final validation
+            is_success = success_score >= 70
+            category = determine_category(data['cookie_flavor'])
 
-            # ENSURE VARIATION
-            if success_score < 5:
-                success_score = np.random.randint(0, 15)  # Prevent absolute 0
-            elif success_score > 95:
-                success_score = np.random.randint(85, 100)  # Prevent absolute 100
-
+            # 5. Generate penalty insights
+            penalty_insights = {
+                'base_score': base_score,
+                'price_penalty': price_penalty,
+                'marketing_penalty': marketing_penalty,
+                'distribution_penalty': distribution_penalty,
+                'total_penalty': total_penalty,
+                'final_score': success_score
+            }
+# --- END UPDATED LOGIC ---
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
