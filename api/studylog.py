@@ -1,3 +1,4 @@
+from unicodedata import category
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
 from flask_cors import CORS, cross_origin
@@ -68,29 +69,20 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # --- UPDATED PREDICTION LOGIC ---
-            # 1. Get raw prediction (0.0-1.0 for classifiers, any range for regression)
-            if hasattr(model, 'predict_proba'):
-                raw_pred = float(model.predict_proba(input_data)[0][1])  # Class probability
+            # Get multiple predictions for diversity
+            if hasattr(model, 'estimators_'):  # For RandomForest
+                preds = [estimator.predict(input_data)[0] for estimator in model.estimators_]
+                raw_score = np.mean(preds)  # Average of all trees
+                spread = np.std(preds)     # Measure of variance
             else:
-                raw_pred = float(model.predict(input_data)[0])  # Regression output
-                
-            # 2. Define all possible whole percentages (0-100)
-            possible_percentages = list(range(0, 101))  # [0, 1, 2,..., 100]
+                raw_score = float(model.predict(input_data)[0])
+                spread = 0
             
-            # 3. Scale regression predictions to 0-100 range if needed
-            if not hasattr(model, 'predict_proba'):
-                # Adjust based on your model's expected output range
-                # Example: If model outputs 0-1, multiply by 100
-                raw_pred = raw_pred * 100  
-                
-            # 4. Find closest whole percentage
-            success_score = min(possible_percentages, key=lambda x: abs(x - raw_pred))
+            # Apply non-linear scaling to enhance spread
+            scaled_score = 100 * (1 / (1 + np.exp(-(raw_score-50)/20)))  # Sigmoid adjustment
             
-            # 5. Final validation
-            success_score = max(0, min(100, success_score))
-            is_success = success_score >= 70
-            category = determine_category(data['cookie_flavor'])
+            # Final whole-number percentage
+            success_score = int(round(np.clip(scaled_score, 0, 100)))
             # --- END UPDATED LOGIC ---
 
             # Get historical data for insights
