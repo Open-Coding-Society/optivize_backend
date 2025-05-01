@@ -62,6 +62,15 @@ class CookiePredictionAPI(Resource):
             return {'message': 'Model not trained. Train first with /api/train'}, 503
 
         try:
+            
+            # 1. First determine category and get base price
+            category = determine_category(data['cookie_flavor'])
+            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)
+            # 2. Prepare input data with properly scoped variables
+            price = float(data['price'])
+            marketing = int(data['marketing'])
+            distribution = float(data['distribution_channels'])
+            
             # Prepare input
             input_data = np.array([[
                 hash(data['cookie_flavor']) % 1000,
