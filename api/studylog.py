@@ -68,22 +68,30 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # Predict
+            # --- UPDATED PREDICTION LOGIC ---
+            # 1. Get raw prediction (0.0-1.0 for classifiers, any range for regression)
             if hasattr(model, 'predict_proba'):
-                # For classifiers: use probability of positive class
-                prob_success = float(model.predict_proba(input_data)[0][1])
-                success_score = round(prob_success * 100, 1)  # Convert to 0-100%
+                raw_pred = float(model.predict_proba(input_data)[0][1])  # Class probability
             else:
-                # For regression models: ensure output is in 0-1 range first
-                raw_score = float(model.predict(input_data)[0])
-                # Apply sigmoid scaling if needed (comment out if already 0-1)
-                # raw_score = 1 / (1 + np.exp(-raw_score))  
-                success_score = round(max(0, min(100, raw_score * 100)), 1)  # Force 0-100 range
-
-            # Final clamping (redundant but safe)
-            success_score = max(0.0, min(100.0, success_score))
+                raw_pred = float(model.predict(input_data)[0])  # Regression output
+                
+            # 2. Define all possible whole percentages (0-100)
+            possible_percentages = list(range(0, 101))  # [0, 1, 2,..., 100]
+            
+            # 3. Scale regression predictions to 0-100 range if needed
+            if not hasattr(model, 'predict_proba'):
+                # Adjust based on your model's expected output range
+                # Example: If model outputs 0-1, multiply by 100
+                raw_pred = raw_pred * 100  
+                
+            # 4. Find closest whole percentage
+            success_score = min(possible_percentages, key=lambda x: abs(x - raw_pred))
+            
+            # 5. Final validation
+            success_score = max(0, min(100, success_score))
             is_success = success_score >= 70
             category = determine_category(data['cookie_flavor'])
+            # --- END UPDATED LOGIC ---
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
