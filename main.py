@@ -6,6 +6,7 @@ from __init__ import app, db
 import requests
 import json
 import os
+from sqlalchemy.orm import joinedload
 from urllib.parse import urljoin, urlparse
 from flask import abort, redirect, render_template, request, send_from_directory, url_for, jsonify
 from flask_login import current_user, login_user, logout_user
@@ -330,14 +331,21 @@ def restore_data_command():
 
 app.cli.add_command(custom_cli)
 
-def list_all_flashcards():
-    flashcards = Flashcard.query.all()
-    if not flashcards:
-        return "No flashcards found."
-    return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
-
-
-
+# Respond to "what can you do" or similar questions
+def get_help_response(q):
+    if any(phrase in q for phrase in ["what can you do", "help", "abilities", "capabilities", "how can you help", "commands"]):
+        return (
+            "Here's what I can help you with regarding inventory and flashcards:\n\n"
+            "- **List Products**: View all your items and the groups they belong to.\n"
+            "- **Get Product Info**: Ask about your 2nd product or any specific item.\n"
+            "- **Create Item**: 'Add new item called [title] with content [content]'.\n"
+            "- **Update Item**: 'Update item [title] with new content [content]'.\n"
+            "- **Delete Item**: 'Delete item [title]'.\n"
+            "- **Create Group**: 'Create group [title]'.\n"
+            "- **Delete Group**: 'Delete group [title]'.\n"
+            "- **Group Info**: Ask 'What group is [item] in?'\n\n"
+            "You can also ask general academic questions, and I'll try my best to help!"
+        )
 
 
 def list_user_flashcards():
@@ -347,9 +355,11 @@ def list_user_flashcards():
         return "You don't have any flashcards yet."
     return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
 
+
 def list_all_user_products():
     user_id = g.current_user.id
-    user_name = f"User #{user_id}"
+    user = User.query.get(User)  
+    user_name = user.name if user else f"User #{user_id}"
 
     items = Flashcard.query.filter_by(_user_id=user_id).all()
     groups = Deck.query.filter_by(_user_id=user_id).all()
@@ -373,6 +383,7 @@ def list_all_user_products():
     return "\n".join(response_lines)
 
 
+
 def get_item_group(item_title):
     item = Flashcard.query.filter_by(_title=item_title).first()
     if not item:
@@ -384,28 +395,249 @@ def get_item_group(item_title):
     return f"The item '{item_title}' is not assigned to any group."
 
 
+def create_flashcard(title, content, user_id, deck_title=None):
+    deck = None
+    if deck_title:
+        deck = Deck.query.filter_by(_title=deck_title, _user_id=user_id).first()
+        if not deck:
+            deck = Deck(title=deck_title, user_id=user_id)
+            deck.create()
+    flashcard = Flashcard(title=title, content=content, user_id=user_id, deck_id=deck.id if deck else None)
+    return flashcard.create()
+
+def delete_flashcard(title, user_id):
+    flashcard = Flashcard.query.filter_by(_title=title, _user_id=user_id).first()
+    if flashcard:
+        flashcard.delete()
+        return f"Item '{title}' was deleted."
+    return f"No item titled '{title}' found."
+
+def create_group(title, user_id):
+    deck = Deck.query.filter_by(_title=title, _user_id=user_id).first()
+    if deck:
+        return f"Group '{title}' already exists."
+    new_deck = Deck(title=title, user_id=user_id)
+    new_deck.create()
+    return f"Group '{title}' was created."
+
+def update_flashcard(title, new_content, user_id):
+    flashcard = Flashcard.query.filter(
+        Flashcard._user_id == user_id,
+        db.func.lower(Flashcard._title) == title.lower()
+    ).first()
+    if not flashcard:
+        return f"Flashcard titled '{title}' not found for your account."
+    
+    flashcard._content = new_content
+    db.session.commit()
+    return f"Flashcard '{flashcard._title}' was updated successfully."
+
+
+def update_group(old_title, new_title, user_id):
+    deck = Deck.query.filter(
+        Deck._user_id == user_id,
+        db.func.lower(Deck._title) == old_title.lower()
+    ).first()
+    if not deck:
+        return f"Group titled '{old_title}' not found."
+
+    deck.title = new_title  # uses the @title.setter property
+    db.session.commit()
+    return f"Group title updated from '{old_title}' to '{new_title}'."
+
+
+
+def delete_group(title, user_id):
+    deck = None
+
+    # Step 1: Look through user's flashcards and safely join to deck objects
+    user_flashcards = Flashcard.query.options(joinedload(Flashcard.deck)).filter_by(_user_id=user_id).all()
+
+    for fc in user_flashcards:
+        group = fc.deck  # This safely references the deck object if it exists
+        if group and group.title.lower() == title.lower():
+            deck = group
+            break
+
+    # Step 2: If no matching deck found, return
+    if not deck:
+        return f"Group '{title}' not found."
+
+    # Step 3: Unassign user's flashcards from this group
+    Flashcard.query.filter_by(_user_id=user_id, _deck_id=deck.id).update({'_deck_id': None})
+
+    # Step 4: Check if other users still use this deck
+    others_use_it = Flashcard.query.filter(
+        Flashcard._deck_id == deck.id,
+        Flashcard._user_id != user_id
+    ).count() > 0
+
+    # Step 5: Delete deck only if no one else is using it
+    if not others_use_it:
+        db.session.delete(deck)
+
+    db.session.commit()
+    return f"Group '{title}' was deleted or unassigned from your items."
+
+
+
+
+pending_intents = {}  # temp dictionary: user_id -> {'action': ..., 'title': ..., ...}
+
 def handle_internal_intents(question: str):
     q = question.lower()
+    user_id = g.current_user.id
 
-    # Keywords we'll match
-    keywords_items = ["list", "show", "give", "state", "display"]
-    products_alias = ["item", "product", "flashcard"]
-    decks_alias = ["group", "deck"]
+    # Shortcut: "add item [title] to group [group]"
+    if "add item" in q and "to group" in q:
+        try:
+            title = q.split("add item")[1].split("to group")[0].strip()
+            group_title = q.split("to group")[1].strip()
+            content = "(no content)"  # default content
 
-    # Check for variations
-    if any(k in q for k in keywords_items) and any(p in q for p in products_alias + decks_alias):
+            create_flashcard(title=title, content=content, user_id=user_id, deck_title=group_title)
+            return f"Okay, I've added '{title}' to the '{group_title}' group."
+        except Exception as e:
+            print("Add item to group failed:", e)
+            return "Sorry, I couldn’t parse that. Try: 'add item apple to group snacks'"
+
+    
+    # Step 1: Handle follow-ups for staged actions
+    if user_id in pending_intents:
+        intent = pending_intents[user_id]
+
+        # Follow-up: Create item with group
+        if intent['action'] == 'create_item_waiting_for_group':
+            group_title = q.strip()
+            create_flashcard(
+                title=intent['title'],
+                content=intent['content'],
+                user_id=user_id,
+                deck_title=group_title
+            )
+            del pending_intents[user_id]
+            return f"Item '{intent['title']}' was created and added to group '{group_title}'."
+
+        # Follow-up: Confirm delete
+        if intent['action'] == 'confirm_delete':
+            confirmed = q.strip().lower() in ["yes", "confirm", "delete"]
+            if confirmed:
+                delete_flashcard(intent['title'], user_id)
+                del pending_intents[user_id]
+                return f"Item '{intent['title']}' has been deleted."
+            else:
+                del pending_intents[user_id]
+                return "Okay, deletion canceled."
+
+    # Step 2: Main command parsing
+
+    # Create item with follow-up for group
+    if "add new item" in q or "create item" in q:
+        try:
+            parts = q.split("called")[1].split("with content")
+            title = parts[0].strip()
+            content = parts[1].strip()
+
+            pending_intents[user_id] = {
+                "action": "create_item_waiting_for_group",
+                "title": title,
+                "content": content
+            }
+            return f"What group would you like to add the item '{title}' to?"
+        except Exception:
+            return "Sorry, I couldn’t parse the item creation request."
+    
+    import re
+
+    if "update group" in q and "to" in q:
+        match = re.search(r"update group (.+?) to (.+)", q, re.IGNORECASE)
+        if match:
+            old_title = match.group(1).strip()
+            new_title = match.group(2).strip()
+            return update_group(old_title, new_title, user_id)
+        else:
+            return "Sorry, I couldn’t update the group title. Try saying: 'update group OldName to NewName'."
+
+
+    import re
+
+    if "update item" in q:
+        try:
+            # Use regex to robustly extract title and new content
+            match = re.search(r"update item (.+?) with new content (.+)", question, re.IGNORECASE)
+            if not match:
+                return "Sorry, I couldn’t parse the item update. Please use: 'update item [title] with new content [content]'"
+
+            title = match.group(1).strip()
+            new_content = match.group(2).strip()
+
+            flashcard = Flashcard.query.filter_by(_title=title, _user_id=user_id).first()
+            if not flashcard:
+                return f"No item titled '{title}' found."
+
+            group = Deck.query.get(flashcard._deck_id) if flashcard._deck_id else None
+            group_name = group.title if group else "None"
+
+            update_flashcard(title, new_content, user_id)
+            return f"Item '{title}' was updated successfully (previously in group '{group_name}')."
+
+        except Exception as e:
+            print("Update item error:", e)
+            return "Something went wrong while updating the item."
+
+
+
+    # Delete item with confirmation
+    if "delete item" in q:
+        try:
+            title = q.split("delete item")[-1].strip()
+            flashcard = Flashcard.query.filter_by(_title=title, _user_id=user_id).first()
+            if not flashcard:
+                return f"No item titled '{title}' found."
+
+            group = Deck.query.get(flashcard._deck_id) if flashcard._deck_id else None
+            group_name = group.title if group else "None"
+
+            pending_intents[user_id] = {
+                "action": "confirm_delete",
+                "title": title
+            }
+            return f"Item '{title}' is in group '{group_name}'. Do you want to delete it? (yes/no)"
+        except Exception:
+            return "Sorry, I couldn’t process your delete request."
+
+    # Create group
+    if "create group" in q or "add group" in q:
+        try:
+            title = q.split("group")[-1].strip()
+            return create_group(title, user_id)
+        except Exception:
+            return "Sorry, couldn’t create the group."
+
+    # Delete group
+    if "delete group" in q:
+        try:
+            title = q.split("delete group")[-1].strip()
+            return delete_group(title, user_id)
+        except Exception:
+            return "Sorry, couldn’t delete the group."
+
+    # Get group of item
+    if "what group is" in q and "in" in q:
+        item_title = q.split("group is")[-1].replace("in", "").strip()
+        return get_item_group(item_title)
+
+    # List items and groups
+    if any(k in q for k in ["list", "show", "give", "state", "display"]) and any(p in q for p in ["item", "product", "flashcard", "deck", "group"]):
         return list_all_user_products()
 
+    # Get second item
     if "2nd product" in q or "second product" in q:
-        flashcards = Flashcard.query.filter_by(_user_id=g.current_user.id).all()
+        flashcards = Flashcard.query.filter_by(_user_id=user_id).all()
         if len(flashcards) >= 2:
             fc = flashcards[1].read()
             return f"Your second product is:\n- {fc['title']}: {fc['content']}"
         return "You don't have a second product."
-
-    if "what item is this group in" in q:
-        # Simulated interpretation - improve later with NLP
-        return "Please specify which group (deck) you mean so I can tell you the items (flashcards) in it."
 
     return None
 
@@ -415,15 +647,6 @@ def get_flashcards_by_keyword(keyword):
     if not flashcards:
         return f"No flashcards found for keyword '{keyword}'."
     return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
-
-
-def update_flashcard(title, new_content):
-    flashcard = Flashcard.query.filter_by(_title=title).first()
-    if not flashcard:
-        return f"Flashcard titled '{title}' not found."
-    flashcard._content = new_content
-    db.session.commit()
-    return f"Flashcard '{title}' updated successfully."
 
 
 genai.configure(api_key="AIzaSyD7DQZlIvCo79fjHjUBYrApmFkRKZ12HSE")
