@@ -347,6 +347,17 @@ def get_help_response(q):
             "You can also ask general academic questions, and I'll try my best to help!"
         )
 
+ # Block prediction requests and redirect users
+    if any(phrase in q for phrase in ["can you make predictions", "make prediction", "can you predict", "predict cookie", "predict success"]):
+        return (
+            "🚫 Sorry, I can’t make predictions here.\n\n"
+            "👉 But you can visit the [Optivize Prediction Portal](https://zafeera123.github.io/optivize_frontend/navigation/log) to try it out!\n\n"
+            "**Here’s how it works:**\n"
+            "- Enter your cookie's flavor, price, marketing effort, and distribution.\n"
+            "- Our AI model will give you a success score (0–100) along with business advice.\n"
+            "- You’ll also get detailed insights on pricing, seasonality match, and marketing effectiveness.\n\n"
+            "Let me know if you need help with inventory or flashcards!"
+        )
 
 def list_user_flashcards():
     user_id = g.current_user.id
@@ -487,6 +498,16 @@ pending_intents = {}  # temp dictionary: user_id -> {'action': ..., 'title': ...
 def handle_internal_intents(question: str):
     q = question.lower()
     user_id = g.current_user.id
+        
+
+
+    if "predict cookie" in q or "cookie prediction" in q:
+        return "I cannot make cookie predictions here. I can only work with the inventory database. However, to get a cookie success prediction, provide: cookie flavor, seasonality, price, marketing score (1–10), and number of distribution channels."
+    elif "train cookie model" in q:
+        return "How it works is to train the cookie model, send a POST request to `/api/train` with at least 5 labeled cookie samples."
+    elif "cookie categories" in q:
+        return "Cookie categories include: chocolate, fruit, nut, seasonal, and premium. These affect pricing and seasonality."
+
 
     # Shortcut: "add item [title] to group [group]"
     if "add item" in q and "to group" in q:
@@ -679,12 +700,20 @@ def ai_homework_help():
 
         # Inject data into AI prompt
         ai_prompt = (
-            f"You are the Optivize Assistant, also known as OptiBot. The user has the following products:\n"
-            f"Groups:\n{deck_info}\n\n"
-            f"Items:\n{flashcard_info}\n\n"
-            f"The user asks: {question}\n"
-            f"Answer the question using the data above if it helps."
+            f"You are OptiBot, a customer service and product intelligence assistant.\n\n"
+            f"Here’s what you should know about the user's product tools:\n"
+            f"- They manage flashcards and groups (like decks).\n"
+            f"- They also use a **Cookie Sales Prediction API**, which:\n"
+            f"    • Uses features like cookie flavor, seasonality, price, marketing score, and distribution reach.\n"
+            f"    • Predicts success likelihood using a trained Random Forest model.\n"
+            f"    • Assigns scores and gives insights on pricing, seasonality, and marketing effectiveness.\n"
+            f"    • Provides advice like 'Reformulate product concept' or 'Increase marketing budget'.\n\n"
+            f"User’s decks:\n{deck_info}\n\n"
+            f"User’s items:\n{flashcard_info}\n\n"
+            f"User asks: {question}\n"
+            f"Respond clearly. If it’s about cookie prediction, use the rules and features described above."
         )
+
 
         response = model.generate_content(ai_prompt)
         response_text = response.text
