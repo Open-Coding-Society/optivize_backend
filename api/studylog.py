@@ -89,9 +89,6 @@ class CookiePredictionAPI(Resource):
             else:
                 base_score = float(model.predict(input_data)[0])
 
-                # Ensure base score is within bounds
-            base_score = max(0, min(100, base_score))
-
                 # Marketing boost (0-20 point scale)
             marketing_boost = (int(data['marketing']) / 10) * 20
 
@@ -102,18 +99,23 @@ class CookiePredictionAPI(Resource):
             adjusted_score = base_score + marketing_boost + distribution_boost
             final_score = max(0, min(100, round(adjusted_score)))
 
-# Add slight variation to prevent clustering
-            if 40 < final_score < 60:
-                final_score += random.choice([-5, 0, 5])
-            elif final_score > 80:
-                final_score -= random.randint(0, 5)
-            elif final_score < 20:
-                final_score += random.randint(0, 5)
-
+        # 4. Enhanced variation logic
+            variation = 0
+            if 30 < adjusted_score < 70:  # Mid-range gets most variation
+                variation = random.gauss(0, 5)  # Normal distribution around 0 (±5%)
+            elif adjusted_score >= 70:     # High scores get downward variation
+                variation = -abs(random.gauss(0, 3))  # Only negative variation
+            else:                         # Low scores get upward variation
+                variation = abs(random.gauss(0, 3))   # Only positive variation
             # Final clamp
             final_score = max(0, min(100, final_score))
             is_success = final_score >= 70
 
+            # 6. Ensure full range coverage (edge cases)
+            if final_score == 100:
+                final_score -= random.randint(0, 3)  # Prevent always max score
+            elif final_score == 0:
+                final_score += random.randint(0, 3)  # Prevent always min score
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
             price_stats = self._get_price_stats(category)
