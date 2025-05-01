@@ -440,11 +440,17 @@ class CookieTrainingAPI(Resource):
         try:
             df = pd.DataFrame(valid_samples)
             X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
-            y = df['success_score']
+            y = df['success_score'].clip(0, 100).round().astype(int)  # Ensures 0,1,2,...,100
 
             global model
-            model = RandomForestRegressor(n_estimators=150, random_state=42)
-            model.fit(X, y)
+            model = RandomForestRegressor(
+                n_estimators=150,
+                random_state=42,
+                min_samples_leaf=5,   # Smoother predictions
+                max_depth=7           # Prevent overfitting
+            )
+            model.fit(X, y)  # Now trains on exact 0-100 integers
+            
             joblib.dump(model, "titanic_cookie_model.pkl")
 
             y_pred = model.predict(X)
