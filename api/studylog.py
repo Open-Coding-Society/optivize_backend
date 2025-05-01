@@ -289,7 +289,6 @@ class CookiePredictionAPI(Resource):
         else:
             recs.append("Reformulate product concept")
             recs.append("Conduct market research")
-        
         # Price recommendations
         price = float(data['price'])
         category_data = PRODUCT_CATEGORIES.get(category, {})
@@ -310,6 +309,71 @@ class CookiePredictionAPI(Resource):
             recs.append(f"Launch 2-3 weeks before {PRODUCT_CATEGORIES[category]['seasonality']} season")
         
         return recs
+    
+    def _get_distribution_stats(self, category):
+        """Calculate historical distribution channel statistics for a category"""
+        successful_dist = [
+            p.distribution_channels 
+            for p in CookieSalesPrediction.query.filter_by(
+                product_category=category,
+                predicted_success=True
+            ).all()
+        ] or [3.0]  # Default if no data
+
+        return {
+            'average': round(float(np.mean(successful_dist)), 2),
+            'min': round(float(min(successful_dist)), 2),
+            'max': round(float(max(successful_dist)), 2),
+            'std_dev': round(float(np.std(successful_dist)), 2) if len(successful_dist) > 1 else 0.5
+        }
+
+    def _get_distribution_analysis(self, current_dist, dist_stats, category):
+        """Analyze distribution channel effectiveness"""
+        diff = current_dist - dist_stats['average']
+        diff_pct = (diff / dist_stats['average']) * 100 if dist_stats['average'] else 0
+
+        if diff > dist_stats['std_dev'] * 1.5:
+            rating = "Extensive"
+            advice = "Consider focusing on highest-performing channels"
+        elif diff > 0:
+            rating = "Above Average"
+            advice = f"Using {abs(diff_pct):.1f}% more channels than typical successes"
+        elif abs(diff) <= dist_stats['std_dev']:
+            rating = "Optimal"
+            advice = "Right mix of distribution channels"
+        else:
+            rating = "Limited"
+            advice = f"Consider adding {abs(round(diff, 2))} more channel types"
+
+        return {
+            'current_channels': current_dist,
+            'category_average': dist_stats['average'],
+            'rating': rating,
+            'difference': round(diff, 2),
+            'percentage_difference': round(diff_pct, 1),
+            'advice': advice,
+            'effective_range': {
+                'min': dist_stats['min'],
+                'max': dist_stats['max']
+            }
+        }
+
+    def _generate_distribution_recommendations(self, current_dist, dist_stats):
+        """Generate specific channel recommendations"""
+        recs = []
+        if current_dist < dist_stats['average']:
+            recs.append(f"Expand from {current_dist} to {round(dist_stats['average'], 1)} channels")
+            recs.append("Test 1-2 new retail partners")
+        elif current_dist > dist_stats['average'] * 1.2:
+            recs.append(f"Optimize your {current_dist} channels (industry avg: {dist_stats['average']})")
+            recs.append("Reallocate resources to top-performing channels")
+        
+        if current_dist < 3:
+            recs.append("Add direct-to-consumer online sales")
+        elif current_dist > 5:
+            recs.append("Audit channel profitability - prune underperformers")
+        
+        return recs
 
 class CookieTrainingAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
@@ -323,90 +387,62 @@ class CookieTrainingAPI(Resource):
         required_fields = ['cookie_flavor', 'seasonality', 'price', 
                          'marketing', 'distribution_channels', 'success_score']
         
-        # --- Data Preparation with Normalization ---
         for sample in data['samples']:
             if not all(field in sample for field in required_fields):
                 continue
             
             try:
-                # Convert success_score to 0.0-1.0 range (ensuring no extremes)
-                raw_score = float(sample['success_score'])
-                normalized_score = raw_score / 100.0  # Convert percentage to decimal
-                clamped_score = max(0.0, min(1.0, normalized_score))  # Force 0-1 range
+                category = determine_category(sample['cookie_flavor'])
+                success_score = float(sample['success_score'])
                 
-                valid_samples.append({
-                    'flavor_hash': hash(sample['cookie_flavor']) % 1000,
-                    'season_hash': hash(sample['seasonality']) % 1000,
-                    'price': float(sample['price']),
-                    'marketing': int(sample['marketing']),
-                    'distribution': float(sample['distribution_channels']),
-                    'success_score': clamped_score  # Stored as 0.0-1.0
-                })
-
-                # Save to database (optional)
                 prediction = CookieSalesPrediction(
                     cookie_flavor=sample['cookie_flavor'],
                     seasonality=sample['seasonality'],
                     price=float(sample['price']),
                     marketing=int(sample['marketing']),
                     distribution_channels=float(sample['distribution_channels']),
-                    predicted_success=clamped_score >= 0.7,
-                    success_score=clamped_score * 100,  # Store as percentage
-                    product_category=determine_category(sample['cookie_flavor'])
+                    predicted_success=success_score >= 70,
+                    success_score=success_score,
+                    product_category=category
                 )
-                prediction.create()
                 
+                if prediction.create():
+                    valid_samples.append({
+                        'flavor_hash': hash(sample['cookie_flavor']) % 1000,
+                        'season_hash': hash(sample['seasonality']) % 1000,
+                        'price': float(sample['price']),
+                        'marketing': int(sample['marketing']),
+                        'distribution': float(sample['distribution_channels']),
+                        'success_score': success_score
+                    })
             except Exception as e:
                 print(f"Skipping invalid sample: {str(e)}")
 
-        if len(valid_samples) < 15:  # Increased minimum samples for better distribution
-            return {'message': f'Insufficient data (need 15, got {len(valid_samples)})'}, 400
+        if len(valid_samples) < 5:
+            return {'message': f'Insufficient data (need 5, got {len(valid_samples)})'}, 400
 
-        # --- Model Training with Probabilistic Outputs ---
         try:
             df = pd.DataFrame(valid_samples)
             X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
-            y = df['success_score']  # Target values 0.0-1.0
+            y = df['success_score']
 
-            # Configure model for full-range predictions
             global model
-            model = RandomForestRegressor(
-                n_estimators=200,
-                max_depth=7,  # Slightly deeper for nuance
-                min_samples_leaf=5,  # Fewer samples per leaf for finer granularity
-                min_samples_split=10,  # Ensure sufficient samples for splits
-                random_state=42
-            )
+            model = RandomForestRegressor(n_estimators=150, random_state=42)
             model.fit(X, y)
-            joblib.dump(model, "cookie_model.pkl")
+            joblib.dump(model, "titanic_cookie_model.pkl")
 
-            # --- Validation and Range Enforcement ---
             y_pred = model.predict(X)
-            
-            # Apply post-processing to ensure full range
-            y_pred_normalized = np.clip(y_pred, 0.0, 1.0)  # Force 0-1 range
-            
-            # Calculate distribution metrics
-            pred_min = round(float(y_pred_normalized.min()) * 100, 2)
-            pred_max = round(float(y_pred_normalized.max()) * 100, 2)
-            pred_mean = round(float(y_pred_normalized.mean()) * 100, 2)
-            
             return jsonify({
                 'success': True,
                 'samples_used': len(valid_samples),
-                'r2_score': round(r2_score(y, y_pred_normalized), 4),
-                'mae': round(mean_absolute_error(y, y_pred_normalized), 4),
-                'prediction_distribution': {
-                    'min': pred_min,  # As percentage
-                    'max': pred_max,
-                    'mean': pred_mean,
-                    'range_covered': f"{pred_min}%-{pred_max}%"
-                },
-                'message': 'Model trained to predict across full 0%-100% range'
+                'r2_score': round(r2_score(y, y_pred), 4),
+                'mae': round(mean_absolute_error(y, y_pred), 2),
+                'categories_trained': len(set(p.product_category for p in CookieSalesPrediction.query.all()))
             })
 
         except Exception as e:
             return {'message': f'Training failed: {str(e)}'}, 500
+
 class CookieHistoryAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def get(self):
