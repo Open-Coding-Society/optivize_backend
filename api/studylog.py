@@ -69,14 +69,11 @@ class CookiePredictionAPI(Resource):
             ]])
             
             # Predict
-            if hasattr(model, 'predict_proba'):
-                success_score = float(model.predict_proba(input_data)[0][1]) * 100  # Probability of success (class 1)
-            elif hasattr(model, 'predict'):
-                raw_score = model.predict(input_data)[0]
-                success_score = round(float(raw_score) * 100 if raw_score <= 1 else float(raw_score), 1)
-            else:
-                 raise Exception("Model doesn't support prediction")
-            success_score = max(0, min(100, success_score))  # Clamp to 0–100
+            if not hasattr(model, 'predict_proba'):
+                raise Exception("Model must support predict_proba(). Retrain with probability=True.")
+            prob_success = model.predict_proba(input_data)[0][1]
+            success_score = round(prob_success * 100, 1)
+            success_score = max(0, min(100, success_score))
             is_success = success_score >= 70
             category = determine_category(data['cookie_flavor'])
 
