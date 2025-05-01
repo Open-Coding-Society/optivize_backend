@@ -444,10 +444,12 @@ class CookieTrainingAPI(Resource):
 
             global model
             model = RandomForestRegressor(
-                n_estimators=150,
+                 n_estimators=200,          # More trees for better spread
                 random_state=42,
-                min_samples_leaf=5,   # Smoother predictions
-                max_depth=7           # Prevent overfitting
+                min_samples_leaf=3,       # Fewer samples per leaf = more granular predictions
+                max_depth=10,             # Deeper trees can capture more variance
+                max_features=0.8,          # Random feature subsets for diversity
+                bootstrap=True           # Prevent overfitting
             )
             model.fit(X, y)  # Now trains on exact 0-100 integers
             
