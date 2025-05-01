@@ -126,14 +126,14 @@ class CookiePredictionAPI(Resource):
 
             # Save to DB
             prediction = CookieSalesPrediction(
-                cookie_flavor=data['cookie_flavor'],
-                seasonality=data['seasonality'],
-                price=float(data['price']),
-                marketing=int(data['marketing']),
-                distribution_channels=float(data['distribution_channels']),
-                predicted_success=is_success,
-                success_score=success_score,
-                product_category=category
+            cookie_flavor=data['cookie_flavor'],
+            seasonality=data['seasonality'],
+            price=float(data['price']),
+            marketing=int(data['marketing']),
+            distribution_channels=float(data['distribution_channels']),
+            predicted_success=success_score,  # Added missing comma here
+            success_score=success_score,
+            product_category=category
             )
             
             if not prediction.create():
@@ -142,7 +142,7 @@ class CookiePredictionAPI(Resource):
             return jsonify({
                 'success': True,
                 'score': round(success_score, 2),
-                'is_success': is_success,
+                'is_success': success_score,
                 'category': category,
                 'insights': insights,
                 'database_id': prediction.id
