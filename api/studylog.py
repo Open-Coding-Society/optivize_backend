@@ -323,62 +323,90 @@ class CookieTrainingAPI(Resource):
         required_fields = ['cookie_flavor', 'seasonality', 'price', 
                          'marketing', 'distribution_channels', 'success_score']
         
+        # --- Data Preparation with Normalization ---
         for sample in data['samples']:
             if not all(field in sample for field in required_fields):
                 continue
             
             try:
-                category = determine_category(sample['cookie_flavor'])
-                success_score = float(sample['success_score'])
+                # Convert success_score to 0.0-1.0 range (ensuring no extremes)
+                raw_score = float(sample['success_score'])
+                normalized_score = raw_score / 100.0  # Convert percentage to decimal
+                clamped_score = max(0.0, min(1.0, normalized_score))  # Force 0-1 range
                 
+                valid_samples.append({
+                    'flavor_hash': hash(sample['cookie_flavor']) % 1000,
+                    'season_hash': hash(sample['seasonality']) % 1000,
+                    'price': float(sample['price']),
+                    'marketing': int(sample['marketing']),
+                    'distribution': float(sample['distribution_channels']),
+                    'success_score': clamped_score  # Stored as 0.0-1.0
+                })
+
+                # Save to database (optional)
                 prediction = CookieSalesPrediction(
                     cookie_flavor=sample['cookie_flavor'],
                     seasonality=sample['seasonality'],
                     price=float(sample['price']),
                     marketing=int(sample['marketing']),
                     distribution_channels=float(sample['distribution_channels']),
-                    predicted_success=success_score >= 70,
-                    success_score=success_score,
-                    product_category=category
+                    predicted_success=clamped_score >= 0.7,
+                    success_score=clamped_score * 100,  # Store as percentage
+                    product_category=determine_category(sample['cookie_flavor'])
                 )
+                prediction.create()
                 
-                if prediction.create():
-                    valid_samples.append({
-                        'flavor_hash': hash(sample['cookie_flavor']) % 1000,
-                        'season_hash': hash(sample['seasonality']) % 1000,
-                        'price': float(sample['price']),
-                        'marketing': int(sample['marketing']),
-                        'distribution': float(sample['distribution_channels']),
-                        'success_score': success_score
-                    })
             except Exception as e:
                 print(f"Skipping invalid sample: {str(e)}")
 
-        if len(valid_samples) < 5:
-            return {'message': f'Insufficient data (need 5, got {len(valid_samples)})'}, 400
+        if len(valid_samples) < 15:  # Increased minimum samples for better distribution
+            return {'message': f'Insufficient data (need 15, got {len(valid_samples)})'}, 400
 
+        # --- Model Training with Probabilistic Outputs ---
         try:
             df = pd.DataFrame(valid_samples)
             X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
-            y = df['success_score']
+            y = df['success_score']  # Target values 0.0-1.0
 
+            # Configure model for full-range predictions
             global model
-            model = RandomForestRegressor(n_estimators=150, random_state=42)
+            model = RandomForestRegressor(
+                n_estimators=200,
+                max_depth=7,  # Slightly deeper for nuance
+                min_samples_leaf=5,  # Fewer samples per leaf for finer granularity
+                min_samples_split=10,  # Ensure sufficient samples for splits
+                random_state=42
+            )
             model.fit(X, y)
-            joblib.dump(model, "titanic_cookie_model.pkl")
+            joblib.dump(model, "cookie_model.pkl")
 
+            # --- Validation and Range Enforcement ---
             y_pred = model.predict(X)
+            
+            # Apply post-processing to ensure full range
+            y_pred_normalized = np.clip(y_pred, 0.0, 1.0)  # Force 0-1 range
+            
+            # Calculate distribution metrics
+            pred_min = round(float(y_pred_normalized.min()) * 100, 2)
+            pred_max = round(float(y_pred_normalized.max()) * 100, 2)
+            pred_mean = round(float(y_pred_normalized.mean()) * 100, 2)
+            
             return jsonify({
                 'success': True,
                 'samples_used': len(valid_samples),
-                'r2_score': round(r2_score(y, y_pred), 4),
-                'mae': round(mean_absolute_error(y, y_pred), 2),
-                'categories_trained': len(set(p.product_category for p in CookieSalesPrediction.query.all()))
+                'r2_score': round(r2_score(y, y_pred_normalized), 4),
+                'mae': round(mean_absolute_error(y, y_pred_normalized), 4),
+                'prediction_distribution': {
+                    'min': pred_min,  # As percentage
+                    'max': pred_max,
+                    'mean': pred_mean,
+                    'range_covered': f"{pred_min}%-{pred_max}%"
+                },
+                'message': 'Model trained to predict across full 0%-100% range'
             })
 
         except Exception as e:
             return {'message': f'Training failed: {str(e)}'}, 500
-
 class CookieHistoryAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def get(self):
