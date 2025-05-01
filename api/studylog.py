@@ -1,4 +1,3 @@
-from unicodedata import category
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
 from flask_cors import CORS, cross_origin
@@ -69,20 +68,29 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # Get multiple predictions for diversity
-            if hasattr(model, 'estimators_'):  # For RandomForest
-                preds = [estimator.predict(input_data)[0] for estimator in model.estimators_]
-                raw_score = np.mean(preds)  # Average of all trees
-                spread = np.std(preds)     # Measure of variance
+            # --- UPDATED PREDICTION LOGIC ---
+            # 1. Get raw prediction (0.0-1.0 for classifiers, any range for regression)
+            if hasattr(model, 'predict_proba'):
+                raw_pred = float(model.predict_proba(input_data)[0][1])  # Class probability
             else:
-                raw_score = float(model.predict(input_data)[0])
-                spread = 0
+                raw_pred = float(model.predict(input_data)[0])  # Regression output
+                
+            # 2. Define all possible whole percentages (0-100)
+            possible_percentages = list(range(0, 101))  # [0, 1, 2,..., 100]
             
-            # Apply non-linear scaling to enhance spread
-            scaled_score = 100 * (1 / (1 + np.exp(-(raw_score-50)/20)))  # Sigmoid adjustment
+            # 3. Scale regression predictions to 0-100 range if needed
+            if not hasattr(model, 'predict_proba'):
+                # Adjust based on your model's expected output range
+                # Example: If model outputs 0-1, multiply by 100
+                raw_pred = raw_pred * 100  
+                
+            # 4. Find closest whole percentage
+            success_score = min(possible_percentages, key=lambda x: abs(x - raw_pred))
             
-            # Final whole-number percentage
-            success_score = int(round(np.clip(scaled_score, 0, 100)))
+            # 5. Final validation
+            success_score = max(0, min(100, success_score))
+            is_success = success_score >= 70
+            category = determine_category(data['cookie_flavor'])
             # --- END UPDATED LOGIC ---
 
             # Get historical data for insights
@@ -436,12 +444,10 @@ class CookieTrainingAPI(Resource):
 
             global model
             model = RandomForestRegressor(
-                 n_estimators=200,          # More trees for better spread
+                n_estimators=150,
                 random_state=42,
-                min_samples_leaf=3,       # Fewer samples per leaf = more granular predictions
-                max_depth=10,             # Deeper trees can capture more variance
-                max_features=0.8,          # Random feature subsets for diversity
-                bootstrap=True           # Prevent overfitting
+                min_samples_leaf=5,   # Smoother predictions
+                max_depth=7           # Prevent overfitting
             )
             model.fit(X, y)  # Now trains on exact 0-100 integers
             
