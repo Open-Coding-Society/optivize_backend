@@ -89,39 +89,30 @@ class CookiePredictionAPI(Resource):
             else:
                 base_score = float(model.predict(input_data)[0])
 
-            # 2. Apply business rule adjustments
-            # Price adjustment curve (parabolic)
-            price_ratio = float(data['price'])/ base_price
-            if price_ratio < 0.7:  # Too cheap
-                price_adjust = -15 * (0.7 - price_ratio)
-            elif price_ratio > 1.3:  # Too expensive
-                price_adjust = -20 * (price_ratio - 1.3)
-            else:  # Ideal price range
-                price_adjust = 10 * (1 - abs(price_ratio - 1))  # Bonus for perfect pricing
+                # Ensure base score is within bounds
+            base_score = max(0, min(100, base_score))
 
-            # Marketing boost (0-20 point scale)
-            marketing_boost = ( int(data['marketing']) / 10) * 20
-            
+                # Marketing boost (0-20 point scale)
+            marketing_boost = (int(data['marketing']) / 10) * 20
+
             # Distribution boost (0-15 point scale)
-            distribution_boost = (distribution / 10) * 15
+            distribution_boost = (float(data['distribution_channels']) / 10) * 15
 
-            # Get the base price for this cookie's category
-            category = determine_category(data['cookie_flavor'])
-            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)  # Default to $4.0 if not found
-            # 3. Calculate final score
-            adjusted_score = base_score + price_adjust + marketing_boost + distribution_boost
+#            Calculate final score
+            adjusted_score = base_score + marketing_boost + distribution_boost
             final_score = max(0, min(100, round(adjusted_score)))
-            
-            # 4. Ensure variety in outputs
-            if 40 < final_score < 60:  # Middle range
+
+# Add slight variation to prevent clustering
+            if 40 < final_score < 60:
                 final_score += random.choice([-5, 0, 5])
-            elif final_score > 80:      # High range
+            elif final_score > 80:
                 final_score -= random.randint(0, 5)
-            elif final_score < 20:     # Low range
+            elif final_score < 20:
                 final_score += random.randint(0, 5)
 
+            # Final clamp
+            final_score = max(0, min(100, final_score))
             is_success = final_score >= 70
-            # --- END ENHANCED LOGIC ---
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
