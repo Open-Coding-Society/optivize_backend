@@ -69,45 +69,22 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # --- CORE PREDICTION LOGIC ---
-            # 1. Get base prediction (0-100 range)
-            raw_score = float(model.predict(input_data)[0])
+             # --- UPDATED PREDICTION LOGIC ---
+            if hasattr(model, 'predict_proba'):
+                # Get probability and convert to 0-100 scale
+                raw_score = float(model.predict_proba(input_data)[0][1]) * 100
+            else:
+                # Assume regression model outputs 0-100 directly
+                raw_score = float(model.predict(input_data)[0])
             
-            # 2. Apply business rule adjustments
-            category_data = PRODUCT_CATEGORIES.get(category, {})
-            base_price = category_data.get('base_price', 4.0)
+            # Round to nearest 10% increment (0, 10, 20,..., 100)
+            success_score = 10 * round(raw_score / 10)
             
-            # Price penalty (more aggressive)
-            price_penalty = 0
-            current_price = float(data['price'])
-            if current_price > base_price * 1.5:
-                price_penalty = min(40, (current_price - base_price) / base_price * 100)
-            elif current_price > base_price * 1.2:
-                price_penalty = 20
-                
-            # Marketing penalty (steeper)
-            marketing_penalty = max(0, (7 - int(data['marketing'])) * 7)
-            
-            # Distribution penalty (steeper)
-            distribution_penalty = max(0, (5 - float(data['distribution_channels'])) * 6)
-            
-            total_penalty = price_penalty + marketing_penalty + distribution_penalty
-            
-            # 3. Calculate final score with 5% increments
-            adjusted_score = raw_score - total_penalty
-            clamped_score = max(10, min(100, adjusted_score))  # Minimum 10%
-            success_score = 5 * round(clamped_score / 5)  # Round to nearest 5%
-            
-            # 4. Force wider distribution
-            if 60 < success_score < 80:
-                # Add slight variation to mid-range scores
-                success_score += np.random.choice([-5, 0, 5])
-            elif success_score >= 80:
-                # Prevent clustering at high end
-                success_score -= np.random.randint(0, 10)
-            
-            success_score = max(10, min(100, success_score))  # Re-clamp after variation
-            # --- END CORE LOGIC ---
+            # Ensure strict 0-100 bounds
+            success_score = max(0, min(100, success_score))
+            is_success = success_score >= 70
+            category = determine_category(data['cookie_flavor'])
+            # --- END PREDICTION LOGIC ---
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
