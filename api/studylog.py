@@ -1,3 +1,5 @@
+from importlib.metadata import distribution
+import random
 from unicodedata import category
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
@@ -69,22 +71,44 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-             # --- UPDATED PREDICTION LOGIC ---
             if hasattr(model, 'predict_proba'):
-                # Get probability and convert to 0-100 scale
-                raw_score = float(model.predict_proba(input_data)[0][1]) * 100
+                base_score = float(model.predict_proba(input_data)[0][1]) * 100
             else:
-                # Assume regression model outputs 0-100 directly
-                raw_score = float(model.predict(input_data)[0])
+                base_score = float(model.predict(input_data)[0])
+
+            # 2. Apply business rule adjustments
+            # Price adjustment curve (parabolic)
+            price_ratio = float(data['price'])/ base_price
+            if price_ratio < 0.7:  # Too cheap
+                price_adjust = -15 * (0.7 - price_ratio)
+            elif price_ratio > 1.3:  # Too expensive
+                price_adjust = -20 * (price_ratio - 1.3)
+            else:  # Ideal price range
+                price_adjust = 10 * (1 - abs(price_ratio - 1))  # Bonus for perfect pricing
+
+            # Marketing boost (0-20 point scale)
+            marketing_boost = ( int(data['marketing']) / 10) * 20
             
-            # Round to nearest 10% increment (0, 10, 20,..., 100)
-            success_score = 10 * round(raw_score / 10)
-            
-            # Ensure strict 0-100 bounds
-            success_score = max(0, min(100, success_score))
-            is_success = success_score >= 70
+            # Distribution boost (0-15 point scale)
+            distribution_boost = (distribution / 10) * 15
+
+            # Get the base price for this cookie's category
             category = determine_category(data['cookie_flavor'])
-            # --- END PREDICTION LOGIC ---
+            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)  # Default to $4.0 if not found
+            # 3. Calculate final score
+            adjusted_score = base_score + price_adjust + marketing_boost + distribution_boost
+            final_score = max(0, min(100, round(adjusted_score)))
+            
+            # 4. Ensure variety in outputs
+            if 40 < final_score < 60:  # Middle range
+                final_score += random.choice([-5, 0, 5])
+            elif final_score > 80:      # High range
+                final_score -= random.randint(0, 5)
+            elif final_score < 20:     # Low range
+                final_score += random.randint(0, 5)
+
+            is_success = final_score >= 70
+            # --- END ENHANCED LOGIC ---
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
@@ -93,12 +117,12 @@ class CookiePredictionAPI(Resource):
 
             # Generate comprehensive insights
             insights = {
-                'score_analysis': self._get_score_analysis(success_score),
+                'score_analysis': self._get_score_analysis(is_success),
                 'price_analysis': self._get_price_analysis(float(data['price']), price_stats, category),
                 'marketing_analysis': self._get_marketing_analysis(int(data['marketing']), marketing_stats),
                 'seasonality_analysis': self._get_seasonality_analysis(data['seasonality'], category),
-                'success_probability': self._calculate_success_probability(success_score),
-                'recommendations': self._generate_recommendations(data, success_score, category)
+                'success_probability': self._calculate_success_probability(is_success),
+                'recommendations': self._generate_recommendations(data, is_success, category)
             }
 
             # Save to DB
@@ -108,8 +132,8 @@ class CookiePredictionAPI(Resource):
             price=float(data['price']),
             marketing=int(data['marketing']),
             distribution_channels=float(data['distribution_channels']),
-            predicted_success=success_score,  # Added missing comma here
-            success_score=success_score,
+            predicted_success=is_success,  # Added missing comma here
+            success_score=is_success,
             product_category=category
             )
             
@@ -118,8 +142,8 @@ class CookiePredictionAPI(Resource):
 
             return jsonify({
                 'success': True,
-                'score': round(success_score, 2),
-                'is_success': success_score,
+                'score': round(is_success, 2),
+                'is_success': is_success,
                 'category': category,
                 'insights': insights,
                 'database_id': prediction.id
