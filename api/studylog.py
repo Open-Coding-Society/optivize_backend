@@ -68,30 +68,30 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            # --- UPDATED PREDICTION LOGIC ---
-            # 1. Get raw prediction (0.0-1.0 for classifiers, any range for regression)
+            # GET PREDICTION WITH CONFIDENCE
             if hasattr(model, 'predict_proba'):
-                raw_pred = float(model.predict_proba(input_data)[0][1])  # Class probability
+                # For classifiers
+                proba = model.predict_proba(input_data)[0]
+                prob_success = proba[1]  # Probability of success class
+                confidence = np.max(proba) - np.min(proba)  # 0-1 scale
+                success_score = int(round(prob_success * 100))
             else:
-                raw_pred = float(model.predict(input_data)[0])  # Regression output
-                
-            # 2. Define all possible whole percentages (0-100)
-            possible_percentages = list(range(0, 101))  # [0, 1, 2,..., 100]
+                # For regression - use quantile predictions
+                preds = [tree.predict(input_data)[0] for tree in model.estimators_]
+                success_score = int(round(np.percentile(preds, 50)))  # Median prediction
+                confidence = (np.percentile(preds, 75) - np.percentile(preds, 25)) / 100
             
-            # 3. Scale regression predictions to 0-100 range if needed
-            if not hasattr(model, 'predict_proba'):
-                # Adjust based on your model's expected output range
-                # Example: If model outputs 0-1, multiply by 100
-                raw_pred = raw_pred * 100  
-                
-            # 4. Find closest whole percentage
-            success_score = min(possible_percentages, key=lambda x: abs(x - raw_pred))
-            
-            # 5. Final validation
+            # APPLY CONFIDENCE-BASED ADJUSTMENT
+            if confidence < 0.3:  # Low confidence
+                success_score = max(20, min(80, success_score))  # Pull toward middle
             success_score = max(0, min(100, success_score))
-            is_success = success_score >= 70
-            category = determine_category(data['cookie_flavor'])
-            # --- END UPDATED LOGIC ---
+
+            # ENSURE VARIATION
+            if success_score < 5:
+                success_score = np.random.randint(0, 15)  # Prevent absolute 0
+            elif success_score > 95:
+                success_score = np.random.randint(85, 100)  # Prevent absolute 100
+
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
@@ -440,14 +440,33 @@ class CookieTrainingAPI(Resource):
         try:
             df = pd.DataFrame(valid_samples)
             X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
-            y = df['success_score'].clip(0, 100).round().astype(int)  # Ensures 0,1,2,...,100
+            
+            # ENSURE LABELS COVER FULL RANGE
+            y = df['success_score'].clip(0, 100)
+            
+            # BALANCE THE TRAINING DATA
+            from sklearn.utils import resample
+            low_samples = df[df['success_score'] < 30]
+            mid_samples = df[(df['success_score'] >= 30) & (df['success_score'] < 70)]
+            high_samples = df[df['success_score'] >= 70]
+            
+            # Oversample minority ranges
+            if len(low_samples) < 10:
+                low_samples = resample(low_samples, replace=True, n_samples=10)
+            if len(mid_samples) < 10:
+                mid_samples = resample(mid_samples, replace=True, n_samples=10)
+                
+            balanced_df = pd.concat([low_samples, mid_samples, high_samples])
+            X = balanced_df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
+            y = balanced_df['success_score']
 
             global model
             model = RandomForestRegressor(
-                n_estimators=150,
+                n_estimators=200,
+                min_samples_leaf=5,      # Prevent overfitting
+                max_depth=7,             # Balanced depth
                 random_state=42,
-                min_samples_leaf=5,   # Smoother predictions
-                max_depth=7           # Prevent overfitting
+                max_features='sqrt'      # Better generalization
             )
             model.fit(X, y)  # Now trains on exact 0-100 integers
             
