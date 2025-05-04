@@ -1,3 +1,4 @@
+from flask import request
 from sqlalchemy.exc import IntegrityError
 from __init__ import app, db
 from model.user import User
