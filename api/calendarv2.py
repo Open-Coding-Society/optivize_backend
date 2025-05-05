@@ -116,4 +116,4 @@ class CalendarAPIV3(Resource):
             return {'message': f'Failed to delete event: {str(e)}'}, 500
 
 # Register the new resource
-api.add_resource(CalendarAPIV3, '/')
+api.add_resource(CalendarAPIV3, '/api/calendarv3/')
