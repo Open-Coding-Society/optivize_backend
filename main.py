@@ -14,6 +14,7 @@ from flask.cli import AppGroup
 from flask_login import current_user, login_required
 from flask import current_app
 from flask import g
+from api import gradelog
 from api.jwt_authorize import token_required
 from werkzeug.security import generate_password_hash
 import shutil
@@ -46,7 +47,7 @@ from api.gradelog import gradelog_api
 from api.profile import profile_api
 from api.tips import tips_api
 from api.leaderboard import leaderboard_api
-from api.calendarv2 import calendar_api
+from api.calendarv2 import calendar_api_v3
 
 
 
@@ -88,7 +89,7 @@ app.register_blueprint(profile_api)
 app.register_blueprint(tips_api)
 app.register_blueprint(deck_api)
 app.register_blueprint(leaderboard_api)
-app.register_blueprint(calendar_api)
+app.register_blueprint(calendar_api_v3)
 
 
 
