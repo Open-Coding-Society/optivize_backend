@@ -46,6 +46,7 @@ from api.gradelog import gradelog_api
 from api.profile import profile_api
 from api.tips import tips_api
 from api.leaderboard import leaderboard_api
+from api.calendarv2 import calendar_api
 
 
 
@@ -65,7 +66,7 @@ from model.profiles import Profile, initProfiles
 from model.chatlog import ChatLog, initChatLogs
 from model.gradelog import GradeLog
 from model.deck import Deck, initDecks
-
+from model.calendar import initEvents
 from model.leaderboard import LeaderboardEntry, initLeaderboard
 # server only Views
 
@@ -87,6 +88,7 @@ app.register_blueprint(profile_api)
 app.register_blueprint(tips_api)
 app.register_blueprint(deck_api)
 app.register_blueprint(leaderboard_api)
+app.register_blueprint(calendar_api)
 
 
 
