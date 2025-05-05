@@ -1,4 +1,4 @@
-from flask import request
+from flask import jsonify, request
 from sqlalchemy.exc import IntegrityError
 from __init__ import app, db
 from model.user import User
@@ -105,9 +105,10 @@ def create_event():
 def get_events():
     user_id = request.args.get('user_id')
     if not user_id:
-        return {"error": "Missing user_id parameter"}, 400
+        return jsonify({"error": "Missing user_id parameter"}), 400
+
     events = CalendarEvent.query.filter_by(_user_id=user_id).all()
-    return [event.read() for event in events], 200
+    return jsonify([event.read() for event in events]), 200
 
 
 @app.route('/calendar/<int:event_id>', methods=['PUT'])
