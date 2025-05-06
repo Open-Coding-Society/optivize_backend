@@ -372,7 +372,7 @@ def list_user_flashcards():
 
 def list_all_user_products():
     user_id = g.current_user.id
-    user = User.query.get(User)  
+    user = User.query.get(user_id)  # Corrected line
     user_name = user.name if user else f"User #{user_id}"
 
     items = Flashcard.query.filter_by(_user_id=user_id).all()
