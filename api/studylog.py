@@ -1,5 +1,3 @@
-from importlib.metadata import distribution
-import random
 from unicodedata import category
 from flask import Blueprint, request, jsonify
 from flask_restful import Api, Resource
@@ -62,19 +60,6 @@ class CookiePredictionAPI(Resource):
             return {'message': 'Model not trained. Train first with /api/train'}, 503
 
         try:
-            
-            # 1. EXTRACT ALL INPUTS FIRST
-            cookie_flavor = data['cookie_flavor']
-            seasonality = data['seasonality']
-            price = float(data['price'])  # Defined here
-            marketing = int(data['marketing'])  # Defined here
-            distribution = float(data['distribution_channels'])
-            # 2. DETERMINE CATEGORY AND BASE PRICE
-            category = determine_category(cookie_flavor)
-            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)
-            
-            
-            
             # Prepare input
             input_data = np.array([[
                 hash(data['cookie_flavor']) % 1000,
@@ -84,38 +69,12 @@ class CookiePredictionAPI(Resource):
                 float(data['distribution_channels'])
             ]])
             
-            if hasattr(model, 'predict_proba'):
-                base_score = float(model.predict_proba(input_data)[0][1]) * 100
-            else:
-                base_score = float(model.predict(input_data)[0])
+            # Get prediction score (0-100)
+            success_score = float(model.predict(input_data)[0])
+            success_score = max(0, min(100, success_score))  # Ensure within bounds
+            is_success = success_score >= 70
+            category = determine_category(data['cookie_flavor'])
 
-                # Marketing boost (0-20 point scale)
-            marketing_boost = (int(data['marketing']) / 10) * 20
-
-            # Distribution boost (0-15 point scale)
-            distribution_boost = (float(data['distribution_channels']) / 10) * 15
-
-#            Calculate final score
-            adjusted_score = base_score + marketing_boost + distribution_boost
-            final_score = max(0, min(100, round(adjusted_score)))
-
-        # 4. Enhanced variation logic
-            variation = 0
-            if 30 < adjusted_score < 70:  # Mid-range gets most variation
-                variation = random.gauss(0, 5)  # Normal distribution around 0 (±5%)
-            elif adjusted_score >= 70:     # High scores get downward variation
-                variation = -abs(random.gauss(0, 3))  # Only negative variation
-            else:                         # Low scores get upward variation
-                variation = abs(random.gauss(0, 3))   # Only positive variation
-            # Final clamp
-            final_score = max(0, min(100, final_score))
-            is_success = final_score >= 70
-
-            # 6. Ensure full range coverage (edge cases)
-            if final_score == 100:
-                final_score -= random.randint(0, 3)  # Prevent always max score
-            elif final_score == 0:
-                final_score += random.randint(0, 3)  # Prevent always min score
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
             price_stats = self._get_price_stats(category)
@@ -123,24 +82,24 @@ class CookiePredictionAPI(Resource):
 
             # Generate comprehensive insights
             insights = {
-                'score_analysis': self._get_score_analysis(is_success),
+                'score_analysis': self._get_score_analysis(success_score),
                 'price_analysis': self._get_price_analysis(float(data['price']), price_stats, category),
                 'marketing_analysis': self._get_marketing_analysis(int(data['marketing']), marketing_stats),
                 'seasonality_analysis': self._get_seasonality_analysis(data['seasonality'], category),
-                'success_probability': self._calculate_success_probability(is_success),
-                'recommendations': self._generate_recommendations(data, is_success, category)
+                'success_probability': self._calculate_success_probability(success_score),
+                'recommendations': self._generate_recommendations(data, success_score, category)
             }
 
             # Save to DB
             prediction = CookieSalesPrediction(
-            cookie_flavor=data['cookie_flavor'],
-            seasonality=data['seasonality'],
-            price=float(data['price']),
-            marketing=int(data['marketing']),
-            distribution_channels=float(data['distribution_channels']),
-            predicted_success=is_success,  # Added missing comma here
-            success_score=is_success,
-            product_category=category
+                cookie_flavor=data['cookie_flavor'],
+                seasonality=data['seasonality'],
+                price=float(data['price']),
+                marketing=int(data['marketing']),
+                distribution_channels=float(data['distribution_channels']),
+                predicted_success=is_success,
+                success_score=success_score,
+                product_category=category
             )
             
             if not prediction.create():
@@ -148,7 +107,7 @@ class CookiePredictionAPI(Resource):
 
             return jsonify({
                 'success': True,
-                'score': round(is_success, 2),
+                'score': round(success_score, 2),
                 'is_success': is_success,
                 'category': category,
                 'insights': insights,
@@ -160,14 +119,14 @@ class CookiePredictionAPI(Resource):
 
     def _get_historical_insights(self, category):
         """Get historical data for the category"""
-        successful = CookieSalesPrediction.query.filter_by(
-            product_category=category,
-            predicted_success=True
+        successful = CookieSalesPrediction.query.filter(
+            CookieSalesPrediction.product_category == category,
+            CookieSalesPrediction.success_score >= 70
         ).all()
         
-        unsuccessful = CookieSalesPrediction.query.filter_by(
-            product_category=category,
-            predicted_success=False
+        unsuccessful = CookieSalesPrediction.query.filter(
+            CookieSalesPrediction.product_category == category,
+            CookieSalesPrediction.success_score < 70
         ).all()
         
         return {
@@ -178,9 +137,9 @@ class CookiePredictionAPI(Resource):
 
     def _get_price_stats(self, category):
         """Calculate price statistics for category"""
-        prices = [p.price for p in CookieSalesPrediction.query.filter_by(
-            product_category=category,
-            predicted_success=True
+        prices = [p.price for p in CookieSalesPrediction.query.filter(
+            CookieSalesPrediction.product_category == category,
+            CookieSalesPrediction.success_score >= 70
         ).all()] or [PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)]
 
         return {
@@ -190,12 +149,10 @@ class CookiePredictionAPI(Resource):
             'std_dev': round(float(np.std(prices)), 2) if len(prices) > 1 else 0.5
         }
 
-
-
     def _get_marketing_stats(self):
         """Calculate overall marketing stats"""
-        marketing_scores = [p.marketing for p in CookieSalesPrediction.query.filter_by(
-            predicted_success=True
+        marketing_scores = [p.marketing for p in CookieSalesPrediction.query.filter(
+            CookieSalesPrediction.success_score >= 70
         ).all()] or [7]  # Default if no data
         
         return {
@@ -328,6 +285,7 @@ class CookiePredictionAPI(Resource):
         else:
             recs.append("Reformulate product concept")
             recs.append("Conduct market research")
+        
         # Price recommendations
         price = float(data['price'])
         category_data = PRODUCT_CATEGORIES.get(category, {})
@@ -346,71 +304,6 @@ class CookiePredictionAPI(Resource):
         # Seasonal recommendations
         if 'seasonal' in category.lower():
             recs.append(f"Launch 2-3 weeks before {PRODUCT_CATEGORIES[category]['seasonality']} season")
-        
-        return recs
-    
-    def _get_distribution_stats(self, category):
-        """Calculate historical distribution channel statistics for a category"""
-        successful_dist = [
-            p.distribution_channels 
-            for p in CookieSalesPrediction.query.filter_by(
-                product_category=category,
-                predicted_success=True
-            ).all()
-        ] or [3.0]  # Default if no data
-
-        return {
-            'average': round(float(np.mean(successful_dist)), 2),
-            'min': round(float(min(successful_dist)), 2),
-            'max': round(float(max(successful_dist)), 2),
-            'std_dev': round(float(np.std(successful_dist)), 2) if len(successful_dist) > 1 else 0.5
-        }
-
-    def _get_distribution_analysis(self, current_dist, dist_stats, category):
-        """Analyze distribution channel effectiveness"""
-        diff = current_dist - dist_stats['average']
-        diff_pct = (diff / dist_stats['average']) * 100 if dist_stats['average'] else 0
-
-        if diff > dist_stats['std_dev'] * 1.5:
-            rating = "Extensive"
-            advice = "Consider focusing on highest-performing channels"
-        elif diff > 0:
-            rating = "Above Average"
-            advice = f"Using {abs(diff_pct):.1f}% more channels than typical successes"
-        elif abs(diff) <= dist_stats['std_dev']:
-            rating = "Optimal"
-            advice = "Right mix of distribution channels"
-        else:
-            rating = "Limited"
-            advice = f"Consider adding {abs(round(diff, 2))} more channel types"
-
-        return {
-            'current_channels': current_dist,
-            'category_average': dist_stats['average'],
-            'rating': rating,
-            'difference': round(diff, 2),
-            'percentage_difference': round(diff_pct, 1),
-            'advice': advice,
-            'effective_range': {
-                'min': dist_stats['min'],
-                'max': dist_stats['max']
-            }
-        }
-
-    def _generate_distribution_recommendations(self, current_dist, dist_stats):
-        """Generate specific channel recommendations"""
-        recs = []
-        if current_dist < dist_stats['average']:
-            recs.append(f"Expand from {current_dist} to {round(dist_stats['average'], 1)} channels")
-            recs.append("Test 1-2 new retail partners")
-        elif current_dist > dist_stats['average'] * 1.2:
-            recs.append(f"Optimize your {current_dist} channels (industry avg: {dist_stats['average']})")
-            recs.append("Reallocate resources to top-performing channels")
-        
-        if current_dist < 3:
-            recs.append("Add direct-to-consumer online sales")
-        elif current_dist > 5:
-            recs.append("Audit channel profitability - prune underperformers")
         
         return recs
 
@@ -463,37 +356,17 @@ class CookieTrainingAPI(Resource):
         try:
             df = pd.DataFrame(valid_samples)
             X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
-            
-            # --- CRITICAL CHANGES START ---
-            # Force 5% increment labels and ensure full range coverage
-            y = (df['success_score']
-                .clip(0, 100)
-                .apply(lambda x: 5 * round(x / 5))  # Round to nearest 5%
-                .astype(int))
-            
-            # Balance the dataset
-            low_samples = df[y <= 40].sample(n=20, replace=True) if len(df[y <= 40]) < 20 else df[y <= 40]
-            mid_samples = df[(y > 40) & (y < 70)].sample(n=20, replace=True) if len(df[(y > 40) & (y < 70)]) < 20 else df[(y > 40) & (y < 70)]
-            high_samples = df[y >= 70]
-            
-            balanced_df = pd.concat([low_samples, mid_samples, high_samples])
-            X = balanced_df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
-            y = balanced_df['success_score']
+            y = df['success_score'].clip(0, 100)  # Ensure scores are between 0-100
 
             global model
             model = RandomForestRegressor(
                 n_estimators=200,
-                min_samples_leaf=3,  # More granular predictions
-                max_depth=10,        # Capture complex patterns
+                min_samples_leaf=3,
+                max_depth=10,
                 random_state=42,
-                max_features=0.8     # Better generalization
+                max_features=0.8
             )
             model.fit(X, y)
-            
-            # Verify output distribution
-            test_preds = model.predict(X)
-            print("Prediction distribution:", np.percentile(test_preds, [0, 10, 25, 50, 75, 90, 100]))
-            # --- CRITICAL CHANGES END ---
             
             joblib.dump(model, "titanic_cookie_model.pkl")
 
