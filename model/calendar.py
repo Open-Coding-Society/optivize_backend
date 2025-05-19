@@ -1,19 +1,10 @@
-from sqlalchemy.exc import IntegrityError
 from datetime import datetime
-from __init__ import app, db
+from sqlalchemy.exc import IntegrityError
+from __init__ import db, app
 
 class Event(db.Model):
     """
-    Event Model for storing user-inputted calendar events
-    
-    Attributes:
-        id (int): Primary key
-        title (str): Title of the event
-        description (str): Description of the event
-        start_time (datetime): Start date and time of the event
-        end_time (datetime): End date and time of the event
-        category (str): Category of the event (optional)
-        date_created (datetime): When the event was created
+    Event Model for storing calendar events.
     """
     __tablename__ = 'events'
 
@@ -33,48 +24,52 @@ class Event(db.Model):
         self.category = category
 
     def create(self):
-        """Create a new event record"""
+        """Save the event to the database."""
         try:
             db.session.add(self)
             db.session.commit()
             return self
         except IntegrityError as e:
             db.session.rollback()
-            app.logger.error(f"IntegrityError while saving event: {e}")
+            app.logger.error(f"[IntegrityError] Failed to create event: {e}")
             return None
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f"Unexpected error while saving event: {e}")
+            app.logger.error(f"[Error] Failed to create event: {e}")
             return None
 
     def read(self):
-        """Return dictionary representation of the event"""
+        """Return a dictionary representation of the event."""
         return {
             "id": self.id,
             "title": self.title,
             "description": self.description,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "start_time": self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "end_time": self.end_time.strftime('%Y-%m-%d %H:%M:%S'),
             "category": self.category,
-            "date_created": self.date_created.isoformat() if self.date_created else None
+            "date_created": self.date_created.strftime('%Y-%m-%d %H:%M:%S')
         }
 
     def update(self, data):
-        """Update event fields with provided dictionary"""
+        """Update the event with a dictionary of values."""
         for key, value in data.items():
-            if hasattr(self, key):
+            if hasattr(self, key) and key != "id":
                 setattr(self, key, value)
         db.session.commit()
         return self
 
     def delete(self):
-        """Delete this event record"""
+        """Delete the event from the database."""
         db.session.delete(self)
         db.session.commit()
-        return None
 
 def initEvents():
-    """Initialize the database table for events"""
+    """
+    Initialize the event table and log result.
+    """
     with app.app_context():
-        db.create_all()
-        app.logger.info("Event table initialized")
+        try:
+            db.create_all()
+            app.logger.info("✅ Event table initialized successfully.")
+        except Exception as e:
+            app.logger.error(f"❌ Failed to initialize event table: {e}")

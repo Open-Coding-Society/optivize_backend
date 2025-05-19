@@ -67,7 +67,7 @@ from model.profiles import Profile, initProfiles
 from model.chatlog import ChatLog, initChatLogs
 from model.gradelog import GradeLog
 from model.deck import Deck, initDecks
-from model.calendar import initEvents
+from model.calendar import Event, initEvents
 from model.leaderboard import LeaderboardEntry, initLeaderboard
 # server only Views
 

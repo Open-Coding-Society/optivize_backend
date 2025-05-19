@@ -4,40 +4,39 @@ from flask_cors import CORS, cross_origin
 from datetime import datetime
 from model.calendar import Event, initEvents, db  
 
-# New blueprint and API route prefix
+from flask import Blueprint, request, jsonify
+from flask_restful import Api, Resource
+from flask_cors import cross_origin
+from datetime import datetime
+from model.calendar import Event
+from __init__ import db
+
+# Create Blueprint and API
 calendar_api_v3 = Blueprint('calendar_api_v3', __name__, url_prefix='/api/calendarv3')
 api = Api(calendar_api_v3)
 
-
-# CORS(calendar_api_v3,
-     # resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
-     # allow_headers=["Content-Type", "Authorization"],
-     # methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     # supports_credentials=True)
+# Define allowed origins
+allowed_origins = ["http://127.0.0.1:4887", "https://zafeera123.github.io"]
 
 class CalendarAPIV3(Resource):
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+
+    @cross_origin(origins=allowed_origins)
     def get(self):
         try:
             events = Event.query.all()
-            events_data = [{
-                'id': event.id,
-                'title': event.title,
-                'description': event.description,
-                'start_time': event.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'end_time': event.end_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'category': event.category
-            } for event in events]
-
-            return jsonify({'success': True, 'events': events_data})
+            return jsonify({
+                'success': True,
+                'events': [event.read() for event in events]
+            })
         except Exception as e:
             return {'message': f'Failed to retrieve events: {str(e)}'}, 500
 
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    @cross_origin(origins=allowed_origins)
     def post(self):
         data = request.get_json()
-        required_fields = ['title', 'description', 'start_time', 'end_time', 'category']
-        if missing := [f for f in required_fields if f not in data]:
+        required = ['title', 'description', 'start_time', 'end_time', 'category']
+        missing = [field for field in required if field not in data]
+        if missing:
             return {'message': 'Missing required fields', 'missing': missing}, 400
 
         try:
@@ -51,20 +50,18 @@ class CalendarAPIV3(Resource):
                 end_time=end_time,
                 category=data['category']
             )
-
-            db.session.add(event)
-            db.session.commit()
+            event.create()
 
             return jsonify({
                 'success': True,
                 'message': 'Event created successfully',
-                'event_id': event.id
+                'event': event.read()
             })
 
         except Exception as e:
             return {'message': f'Failed to create event: {str(e)}'}, 500
 
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    @cross_origin(origins=allowed_origins)
     def put(self):
         data = request.get_json()
         if 'id' not in data:
@@ -77,8 +74,10 @@ class CalendarAPIV3(Resource):
         try:
             event.title = data.get('title', event.title)
             event.description = data.get('description', event.description)
-            event.start_time = datetime.strptime(data['start_time'], '%Y-%m-%d %H:%M:%S') if 'start_time' in data else event.start_time
-            event.end_time = datetime.strptime(data['end_time'], '%Y-%m-%d %H:%M:%S') if 'end_time' in data else event.end_time
+            if 'start_time' in data:
+                event.start_time = datetime.strptime(data['start_time'], '%Y-%m-%d %H:%M:%S')
+            if 'end_time' in data:
+                event.end_time = datetime.strptime(data['end_time'], '%Y-%m-%d %H:%M:%S')
             event.category = data.get('category', event.category)
 
             db.session.commit()
@@ -86,13 +85,13 @@ class CalendarAPIV3(Resource):
             return jsonify({
                 'success': True,
                 'message': 'Event updated successfully',
-                'event_id': event.id
+                'event': event.read()
             })
 
         except Exception as e:
             return {'message': f'Failed to update event: {str(e)}'}, 500
 
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    @cross_origin(origins=allowed_origins)
     def delete(self):
         data = request.get_json()
         if 'id' not in data:
@@ -115,5 +114,5 @@ class CalendarAPIV3(Resource):
         except Exception as e:
             return {'message': f'Failed to delete event: {str(e)}'}, 500
 
-# Register the new resource
-api.add_resource(CalendarAPIV3, '/api/calendarv3/')
+# Register route (no extra '/api/calendarv3/' here, since it's already in Blueprint prefix)
+api.add_resource(CalendarAPIV3, '/')
