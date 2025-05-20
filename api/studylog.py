@@ -7,14 +7,14 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 import pandas as pd
-from model.studylog import CookieSalesPrediction, db
+from model.studylog import productSalesPrediction, db
 from datetime import datetime
 
-cookie_api = Blueprint('cookie_api', __name__, url_prefix='/api')
-api = Api(cookie_api)
+product_api = Blueprint('product_api', __name__, url_prefix='/api')
+api = Api(product_api)
 
 # Enable CORS
-CORS(cookie_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
+CORS(product_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
      supports_credentials=True)
 
 # Product categories
@@ -28,31 +28,31 @@ PRODUCT_CATEGORIES = {
 
 # Load Model
 try:
-    model = joblib.load("titanic_cookie_model.pkl")
+    model = joblib.load("titanic_product_model.pkl")
 except FileNotFoundError:
     model = None
 
-def determine_category(cookie_flavor):
-    """Simple category detection based on flavor keywords"""
-    flavor = cookie_flavor.lower()
-    if any(x in flavor for x in ['chocolate', 'brownie', 'fudge']):
+def determine_category(product_type):
+    """Simple category detection based on type keywords"""
+    type = product_type.lower()
+    if any(x in type for x in ['chocolate', 'brownie', 'fudge']):
         return 'chocolate'
-    elif any(x in flavor for x in ['berry', 'lemon', 'apple']):
+    elif any(x in type for x in ['berry', 'lemon', 'apple']):
         return 'fruit'
-    elif any(x in flavor for x in ['nut', 'almond', 'peanut']):
+    elif any(x in type for x in ['nut', 'almond', 'peanut']):
         return 'nut'
-    elif any(x in flavor for x in ['pumpkin', 'peppermint', 'holiday']):
+    elif any(x in type for x in ['pumpkin', 'peppermint', 'holiday']):
         return 'seasonal'
     return 'premium'
 
-class CookiePredictionAPI(Resource):
+class productPredictionAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
         """Enhanced prediction with comprehensive insights"""
         data = request.get_json()
         
         # Validation
-        required_fields = ['cookie_flavor', 'seasonality', 'price', 'marketing', 'distribution_channels']
+        required_fields = ['product_type', 'seasonality', 'price', 'marketing', 'distribution_channels']
         if missing := [f for f in required_fields if f not in data]:
             return {'message': 'Missing required fields', 'missing': missing}, 400
 
@@ -62,7 +62,7 @@ class CookiePredictionAPI(Resource):
         try:
             # Prepare input
             input_data = np.array([[
-                hash(data['cookie_flavor']) % 1000,
+                hash(data['product_type']) % 1000,
                 hash(data['seasonality']) % 1000,
                 float(data['price']),
                 int(data['marketing']),
@@ -73,7 +73,7 @@ class CookiePredictionAPI(Resource):
             success_score = float(model.predict(input_data)[0])
             success_score = max(0, min(100, success_score))  # Ensure within bounds
             is_success = success_score >= 70
-            category = determine_category(data['cookie_flavor'])
+            category = determine_category(data['product_type'])
 
             # Get historical data for insights
             historical_data = self._get_historical_insights(category)
@@ -91,8 +91,8 @@ class CookiePredictionAPI(Resource):
             }
 
             # Save to DB
-            prediction = CookieSalesPrediction(
-                cookie_flavor=data['cookie_flavor'],
+            prediction = productSalesPrediction(
+                product_type=data['product_type'],
                 seasonality=data['seasonality'],
                 price=float(data['price']),
                 marketing=int(data['marketing']),
@@ -119,14 +119,14 @@ class CookiePredictionAPI(Resource):
 
     def _get_historical_insights(self, category):
         """Get historical data for the category"""
-        successful = CookieSalesPrediction.query.filter(
-            CookieSalesPrediction.product_category == category,
-            CookieSalesPrediction.success_score >= 70
+        successful = productSalesPrediction.query.filter(
+            productSalesPrediction.product_category == category,
+            productSalesPrediction.success_score >= 70
         ).all()
         
-        unsuccessful = CookieSalesPrediction.query.filter(
-            CookieSalesPrediction.product_category == category,
-            CookieSalesPrediction.success_score < 70
+        unsuccessful = productSalesPrediction.query.filter(
+            productSalesPrediction.product_category == category,
+            productSalesPrediction.success_score < 70
         ).all()
         
         return {
@@ -137,9 +137,9 @@ class CookiePredictionAPI(Resource):
 
     def _get_price_stats(self, category):
         """Calculate price statistics for category"""
-        prices = [p.price for p in CookieSalesPrediction.query.filter(
-            CookieSalesPrediction.product_category == category,
-            CookieSalesPrediction.success_score >= 70
+        prices = [p.price for p in productSalesPrediction.query.filter(
+            productSalesPrediction.product_category == category,
+            productSalesPrediction.success_score >= 70
         ).all()] or [PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)]
 
         return {
@@ -151,8 +151,8 @@ class CookiePredictionAPI(Resource):
 
     def _get_marketing_stats(self):
         """Calculate overall marketing stats"""
-        marketing_scores = [p.marketing for p in CookieSalesPrediction.query.filter(
-            CookieSalesPrediction.success_score >= 70
+        marketing_scores = [p.marketing for p in productSalesPrediction.query.filter(
+            productSalesPrediction.success_score >= 70
         ).all()] or [7]  # Default if no data
         
         return {
@@ -307,7 +307,7 @@ class CookiePredictionAPI(Resource):
         
         return recs
 
-class CookieTrainingAPI(Resource):
+class productTrainingAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
         data = request.get_json()
@@ -316,7 +316,7 @@ class CookieTrainingAPI(Resource):
             return {'message': 'Missing samples data'}, 400
 
         valid_samples = []
-        required_fields = ['cookie_flavor', 'seasonality', 'price', 
+        required_fields = ['product_type', 'seasonality', 'price', 
                          'marketing', 'distribution_channels', 'success_score']
         
         for sample in data['samples']:
@@ -324,11 +324,11 @@ class CookieTrainingAPI(Resource):
                 continue
             
             try:
-                category = determine_category(sample['cookie_flavor'])
+                category = determine_category(sample['product_type'])
                 success_score = float(sample['success_score'])
                 
-                prediction = CookieSalesPrediction(
-                    cookie_flavor=sample['cookie_flavor'],
+                prediction = productSalesPrediction(
+                    product_type=sample['product_type'],
                     seasonality=sample['seasonality'],
                     price=float(sample['price']),
                     marketing=int(sample['marketing']),
@@ -340,7 +340,7 @@ class CookieTrainingAPI(Resource):
                 
                 if prediction.create():
                     valid_samples.append({
-                        'flavor_hash': hash(sample['cookie_flavor']) % 1000,
+                        'type_hash': hash(sample['product_type']) % 1000,
                         'season_hash': hash(sample['seasonality']) % 1000,
                         'price': float(sample['price']),
                         'marketing': int(sample['marketing']),
@@ -355,7 +355,7 @@ class CookieTrainingAPI(Resource):
 
         try:
             df = pd.DataFrame(valid_samples)
-            X = df[['flavor_hash', 'season_hash', 'price', 'marketing', 'distribution']]
+            X = df[['type_hash', 'season_hash', 'price', 'marketing', 'distribution']]
             y = df['success_score'].clip(0, 100)  # Ensure scores are between 0-100
 
             global model
@@ -368,7 +368,7 @@ class CookieTrainingAPI(Resource):
             )
             model.fit(X, y)
             
-            joblib.dump(model, "titanic_cookie_model.pkl")
+            joblib.dump(model, "titanic_product_model.pkl")
 
             y_pred = model.predict(X)
             return jsonify({
@@ -376,22 +376,22 @@ class CookieTrainingAPI(Resource):
                 'samples_used': len(valid_samples),
                 'r2_score': round(r2_score(y, y_pred), 4),
                 'mae': round(mean_absolute_error(y, y_pred), 2),
-                'categories_trained': len(set(p.product_category for p in CookieSalesPrediction.query.all()))
+                'categories_trained': len(set(p.product_category for p in productSalesPrediction.query.all()))
             })
 
         except Exception as e:
             return {'message': f'Training failed: {str(e)}'}, 500
 
-class CookieHistoryAPI(Resource):
+class productHistoryAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def get(self):
         try:
-            predictions = CookieSalesPrediction.query.order_by(CookieSalesPrediction.date_created.desc()).all()
+            predictions = productSalesPrediction.query.order_by(productSalesPrediction.date_created.desc()).all()
             return jsonify([p.read() for p in predictions])
         except Exception as e:
             return {'message': f'Failed to fetch history: {str(e)}'}, 500
 
 # Register endpoints
-api.add_resource(CookiePredictionAPI, '/predict')
-api.add_resource(CookieTrainingAPI, '/train')
-api.add_resource(CookieHistoryAPI, '/history')
+api.add_resource(productPredictionAPI, '/predict')
+api.add_resource(productTrainingAPI, '/train')
+api.add_resource(productHistoryAPI, '/history')
