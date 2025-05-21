@@ -1,15 +1,18 @@
 from flask import Blueprint, jsonify, request, current_app
-from flask_cors import cross_origin
+from flask_cors import cross_origin, CORS
 from model.flashcard import Flashcard
 from model.deck import Deck
 from __init__ import db
-from datetime import datetime  # Add this import
+from datetime import datetime
 
 # Create a Blueprint for the Zapier API
 zapier_api = Blueprint('zapier_api', __name__, url_prefix='/api/zapier')
 
-@zapier_api.route('/low-stock/<int:item_id>/<int:threshold>', methods=['GET'])
-@cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io/optivize_frontend"], supports_credentials=True)
+# Enable CORS for the entire blueprint
+CORS(zapier_api, origins="*", methods=["GET", "POST", "OPTIONS"])
+
+@zapier_api.route('/low-stock/<int:item_id>/<int:threshold>', methods=['GET', 'OPTIONS'])
+@cross_origin(origins="*", methods=["GET", "OPTIONS"])
 def get_low_stock_for_item(item_id, threshold):
     """
     Return low stock alert for a specific item based on threshold.
@@ -54,15 +57,15 @@ def get_low_stock_for_item(item_id, threshold):
         return jsonify({
             "has_low_stock": low_stock_item is not None,
             "item": low_stock_item,
-            "timestamp": datetime.now().isoformat()  # Use current time
+            "timestamp": datetime.now().isoformat()
         })
         
     except Exception as e:
         current_app.logger.error(f"Error in low stock API: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@zapier_api.route('/low-stock', methods=['GET'])
-@cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io/optivize_frontend"], supports_credentials=True)
+@zapier_api.route('/low-stock', methods=['GET', 'OPTIONS'])
+@cross_origin(origins="*", methods=["GET", "OPTIONS"])
 def get_all_low_stock():
     """
     Return all items with stock below threshold.
@@ -119,8 +122,15 @@ def get_all_low_stock():
         return jsonify({
             "low_stock_items": low_stock_items,
             "count": len(low_stock_items),
-            "timestamp": datetime.now().isoformat()  # Use current time
+            "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
         current_app.logger.error(f"Error in low stock API: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+# Add a simple test endpoint
+@zapier_api.route('/test', methods=['GET'])
+@cross_origin(origins="*")
+def test_endpoint():
+    """Simple test endpoint to verify the blueprint is working"""
+    return jsonify({"message": "Zapier API is working!", "timestamp": datetime.now().isoformat()})
