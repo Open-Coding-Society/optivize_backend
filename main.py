@@ -1,4 +1,4 @@
-# imports from flask
+# Main.py, imports from flask
 import json
 from __init__ import app, db
 import google.generativeai as genai
@@ -25,6 +25,8 @@ from model.channel import Channel
 from api.deck import deck_api
 import numpy as np
 import random
+from api.zapier import zapier_api
+
 
 
 # import "objects" from "this" project
@@ -90,6 +92,8 @@ app.register_blueprint(tips_api)
 app.register_blueprint(deck_api)
 app.register_blueprint(leaderboard_api)
 app.register_blueprint(calendar_api_v3)
+app.register_blueprint(zapier_api)
+
 
 
 
