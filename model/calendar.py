@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from flask import Blueprint, jsonify
 from sqlalchemy.exc import IntegrityError
 from __init__ import db, app
 
@@ -73,3 +74,44 @@ def initEvents():
             app.logger.info("✅ Event table initialized successfully.")
         except Exception as e:
             app.logger.error(f"❌ Failed to initialize event table: {e}")
+
+# === Dummy Test Route ===
+
+calendartest_api = Blueprint('calendartest_api', __name__)
+
+@calendartest_api.route('/api/calendartest', methods=['GET'])
+def test_calendar_data():
+    """
+    Dummy API to simulate fetching calendar data for frontend testing.
+    """
+    mock_events = [
+        {
+            "id": 101,
+            "title": "Morning Prep",
+            "description": "Get store ready before open",
+            "start_time": (datetime.utcnow()).strftime('%Y-%m-%dT%H:%M:%S'),
+            "end_time": (datetime.utcnow() + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            "category": "Opening Shift",
+            "date_created": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+        },
+        {
+            "id": 102,
+            "title": "Inventory Restock",
+            "description": "Check and reorder supplies",
+            "start_time": (datetime.utcnow() + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            "end_time": (datetime.utcnow() + timedelta(days=1, hours=2)).strftime('%Y-%m-%dT%H:%M:%S'),
+            "category": "Inventory",
+            "date_created": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+        },
+        {
+            "id": 103,
+            "title": "Weekly Review",
+            "description": "Team meeting for weekly planning",
+            "start_time": (datetime.utcnow() + timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%S'),
+            "end_time": (datetime.utcnow() + timedelta(days=3, hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            "category": "Meeting",
+            "date_created": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+        }
+    ]
+
+    return jsonify(mock_events), 200
