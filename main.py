@@ -25,7 +25,7 @@ from model.channel import Channel
 from api.deck import deck_api
 import numpy as np
 import random
-from api.zapier import zapier_api
+from api.zapier import zapier_api #import zapier_api
 
 
 

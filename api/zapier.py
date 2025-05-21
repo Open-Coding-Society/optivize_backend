@@ -1,5 +1,3 @@
-#zapier.py file
-
 from flask import Blueprint, jsonify, request, current_app
 from flask_cors import cross_origin
 from model.flashcard import Flashcard
