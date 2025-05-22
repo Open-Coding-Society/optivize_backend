@@ -3,7 +3,6 @@ from flask_login import LoginManager
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_session import Session
 from dotenv import load_dotenv
 import os
 
@@ -30,8 +29,8 @@ app.config.update({
     "SESSION_COOKIE_SAMESITE": "None",
     "SESSION_COOKIE_SECURE": True,
 })
-app.config['SESSION_TYPE'] = 'filesystem'
-Session(app)
+app.config['SESSION_COOKIE_NAME'] = 'sess_python_flask'
+
 
 
 # Browser settings
