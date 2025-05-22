@@ -8,10 +8,14 @@ from __init__ import db
 # Blueprint
 calendar_api_v3 = Blueprint('calendar_api_v3', __name__, url_prefix='/api/calendarv3')
 api = Api(calendar_api_v3)
-
 # Allowed CORS origins
 allowed_origins = ["http://127.0.0.1:4887", "https://zafeera123.github.io"]
 CORS(app, origins=allowed_origins, supports_credentials=True)
+CORS(
+    app,
+    origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"],
+    supports_credentials=True
+)
 # ---------- EVENTS ----------
 class EventAPI(Resource):
     @cross_origin(origins=allowed_origins)
