@@ -24,3 +24,4 @@ instance/data.json.*.bak
 
 .env
 flask_session/
+.env
