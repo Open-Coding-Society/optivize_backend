@@ -50,6 +50,7 @@ from api.profile import profile_api
 from api.tips import tips_api
 from api.leaderboard import leaderboard_api
 from api.calendarv2 import calendar_api_v3
+from api.google_api import google_api
 
 
 
@@ -93,6 +94,8 @@ app.register_blueprint(deck_api)
 app.register_blueprint(leaderboard_api)
 app.register_blueprint(calendar_api_v3)
 app.register_blueprint(zapier_api)
+app.register_blueprint(google_api)
+
 
 
 

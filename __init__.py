@@ -3,6 +3,7 @@ from flask_login import LoginManager
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_session import Session
 from dotenv import load_dotenv
 import os
 
@@ -24,6 +25,14 @@ app.config['ADMIN_USER'] = os.environ.get('ADMIN_USER') or 'admin'
 app.config['ADMIN_PASSWORD'] = os.environ.get('ADMIN_PASSWORD') or os.environ.get('DEFAULT_PASSWORD') or 'password'
 app.config['DEFAULT_USER'] = os.environ.get('DEFAULT_USER') or 'user'
 app.config['DEFAULT_PASSWORD'] = os.environ.get('DEFAULT_PASSWORD') or 'password'
+
+app.config.update({
+    "SESSION_COOKIE_SAMESITE": "None",
+    "SESSION_COOKIE_SECURE": True,
+})
+app.config['SESSION_TYPE'] = 'filesystem'
+Session(app)
+
 
 # Browser settings
 SECRET_KEY = os.environ.get('SECRET_KEY') or 'SECRET_KEY' # secret key for session management
