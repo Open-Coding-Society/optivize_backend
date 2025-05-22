@@ -9,11 +9,7 @@ calendar_api_v3 = Blueprint('calendar_api_v3', __name__, url_prefix='/api/calend
 api = Api(calendar_api_v3)
 
 
-# CORS(calendar_api_v3,
-     # resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
-     # allow_headers=["Content-Type", "Authorization"],
-     # methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     # supports_credentials=True)
+
 
 class CalendarAPIV3(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
