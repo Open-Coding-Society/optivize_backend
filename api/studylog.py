@@ -18,12 +18,16 @@ CORS(product_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https
      supports_credentials=True)
 
 # Product categories
+# Updated Product categories
 PRODUCT_CATEGORIES = {
-    'chocolate': {'base_price': 3.75, 'seasonality': 'year-round'},
-    'fruit': {'base_price': 3.50, 'seasonality': 'seasonal'},
-    'nut': {'base_price': 4.00, 'seasonality': 'year-round'},
-    'seasonal': {'base_price': 4.25, 'seasonality': 'holiday'},
-    'premium': {'base_price': 4.50, 'seasonality': 'year-round'}
+    'fruits': {'base_price': 3.50, 'seasonality': 'seasonal'},
+    'vegetables': {'base_price': 2.50, 'seasonality': 'seasonal'},
+    'electronics': {'base_price': 199.99, 'seasonality': 'year-round'},
+    'clothing': {'base_price': 29.99, 'seasonality': 'seasonal'},
+    'sports': {'base_price': 49.99, 'seasonality': 'year-round'},
+    'home_goods': {'base_price': 39.99, 'seasonality': 'year-round'},
+    'toys': {'base_price': 19.99, 'seasonality': 'holiday'},
+    'books': {'base_price': 14.99, 'seasonality': 'year-round'}
 }
 
 # Load Model
@@ -33,18 +37,26 @@ except FileNotFoundError:
     model = None
 
 def determine_category(product_type):
-    """Simple category detection based on type keywords"""
-    type = product_type.lower()
-    if any(x in type for x in ['chocolate', 'brownie', 'fudge']):
-        return 'chocolate'
-    elif any(x in type for x in ['berry', 'lemon', 'apple']):
-        return 'fruit'
-    elif any(x in type for x in ['nut', 'almond', 'peanut']):
-        return 'nut'
-    elif any(x in type for x in ['pumpkin', 'peppermint', 'holiday']):
-        return 'seasonal'
-    return 'premium'
-
+    """General category detection based on product type keywords"""
+    product_type = product_type.lower()
+    
+    if any(x in product_type for x in ['apple', 'banana', 'berry', 'fruit', 'orange', 'grape', 'kiwi']):
+        return 'fruits'
+    elif any(x in product_type for x in ['tomato', 'carrot', 'lettuce', 'vegetable', 'cucumber', 'pepper', 'broccoli']):
+        return 'vegetables'
+    elif any(x in product_type for x in ['phone', 'laptop', 'camera', 'electronic', 'PC', 'tablet', 'gadget']):
+        return 'electronics'
+    elif any(x in product_type for x in ['shirt', 'pants', 'dress', 'jacket', 'jeans', 'sneakers', 'sweater', 'clothing']):
+        return 'clothing'
+    elif any(x in product_type for x in ['ball', 'racket', 'bat', 'sport', 'exercise', 'fitness', 'gear', 'equipment']):
+        return 'sports'
+    elif any(x in product_type for x in ['furniture', 'decor', 'kitchen', 'home', 'decoration', 'lamp', 'appliance', 'utensil']):
+        return 'home_goods'
+    elif any(x in product_type for x in ['toy', 'game', 'doll', 'lego', 'action figure', 'puzzle', 'board game', 'stuffed animal']):
+        return 'toys'
+    elif any(x in product_type for x in ['book', 'novel', 'textbook', 'magazine', 'comic', 'literature', 'story', 'guide']):
+        return 'books'
+    return 'miscellaneous'  # Default category
 class productPredictionAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
@@ -136,19 +148,29 @@ class productPredictionAPI(Resource):
         }
 
     def _get_price_stats(self, category):
-        """Calculate price statistics for category"""
+        """Calculate price statistics for category with better defaults"""
         prices = [p.price for p in productSalesPrediction.query.filter(
             productSalesPrediction.product_category == category,
             productSalesPrediction.success_score >= 70
-        ).all()] or [PRODUCT_CATEGORIES.get(category, {}).get('base_price', 4.0)]
-
+        ).all()]
+        
+        # Use category base price if no historical data
+        if not prices:
+            base_price = PRODUCT_CATEGORIES.get(category, {}).get('base_price', 10.0)  # Default $10 if no category
+            return {
+                'average': base_price,
+                'min': base_price * 0.8,  # 20% below
+                'max': base_price * 1.2,  # 20% above
+                'std_dev': base_price * 0.1  # 10% std dev
+            }
+        
         return {
             'average': round(float(np.mean(prices)), 2),
             'min': round(float(min(prices)), 2),
             'max': round(float(max(prices)), 2),
-            'std_dev': round(float(np.std(prices)), 2) if len(prices) > 1 else 0.5
+            'std_dev': round(float(np.std(prices)), 2) if len(prices) > 1 else (max(prices)-min(prices))/2
         }
-
+        
     def _get_marketing_stats(self):
         """Calculate overall marketing stats"""
         marketing_scores = [p.marketing for p in productSalesPrediction.query.filter(
@@ -182,11 +204,17 @@ class productPredictionAPI(Resource):
                 }
 
     def _get_price_analysis(self, current_price, price_stats, category):
-        """Analyze price positioning"""
+        """Analyze price positioning for general products"""
         diff = current_price - price_stats['average']
         diff_pct = (diff / price_stats['average']) * 100 if price_stats['average'] else 0
         
-        if diff > price_stats['std_dev'] * 1.5:
+        # Different thresholds for different categories
+        if category in ['electronics', 'sports']:
+            premium_threshold = price_stats['std_dev'] * 2
+        else:
+            premium_threshold = price_stats['std_dev'] * 1.5
+        
+        if diff > premium_threshold:
             position = "Premium"
             advice = f"Priced {abs(diff_pct):.1f}% above category average"
         elif diff > 0:
@@ -239,13 +267,15 @@ class productPredictionAPI(Resource):
         }
 
     def _get_seasonality_analysis(self, current_season, category):
-        """Analyze seasonality match"""
-        expected_season = PRODUCT_CATEGORIES.get(category, {}).get('seasonality', 'year-round')
+        """Analyze seasonality match for general products"""
+        category_data = PRODUCT_CATEGORIES.get(category, {})
+        expected_season = category_data.get('seasonality', 'year-round')
         
         if expected_season == 'year-round':
             return {
                 'match': True,
-                'message': "This category performs well year-round"
+                'message': "This category performs well year-round",
+                'impact': "No seasonal impact expected"
             }
         
         is_match = expected_season.lower() in current_season.lower()
@@ -255,7 +285,7 @@ class productPredictionAPI(Resource):
             'current_season': current_season,
             'recommended_season': expected_season,
             'message': "Perfect season match" if is_match else f"Best season: {expected_season}",
-            'impact': "10-15% potential uplift" if is_match else "Possible 10-15% lower performance"
+            'impact': "Potential seasonal uplift" if is_match else "Possible seasonal performance dip"
         }
 
     def _calculate_success_probability(self, score):
@@ -269,13 +299,13 @@ class productPredictionAPI(Resource):
         }
 
     def _generate_recommendations(self, data, score, category):
-        """Generate actionable recommendations"""
+        """Generate actionable recommendations for general products"""
         recs = []
         
         # General recommendations based on score
         if score >= 80:
             recs.append("Proceed with full-scale launch")
-            recs.append("Consider premium packaging and pricing")
+            recs.append("Consider premium positioning")
         elif score >= 70:
             recs.append("Proceed with standard launch")
             recs.append("Run targeted marketing campaign")
@@ -283,27 +313,33 @@ class productPredictionAPI(Resource):
             recs.append("Conduct small test market first")
             recs.append("Optimize product before full launch")
         else:
-            recs.append("Reformulate product concept")
+            recs.append("Re-evaluate product concept")
             recs.append("Conduct market research")
         
-        # Price recommendations
-        price = float(data['price'])
+        # Category-specific recommendations
         category_data = PRODUCT_CATEGORIES.get(category, {})
-        if price > category_data.get('base_price', 4.0) * 1.2:
-            recs.append(f"Consider reducing price to ${category_data.get('base_price', 4.0) * 1.1:.2f} (+10%)")
-        elif price < category_data.get('base_price', 4.0) * 0.9:
-            recs.append(f"Consider premium version at ${category_data.get('base_price', 4.0):.2f}")
+        price = float(data['price'])
+        
+        if price > category_data.get('base_price', 0) * 1.2:
+            recs.append(f"Consider price reduction to align with category average (~${category_data.get('base_price', 0):.2f})")
+        elif price < category_data.get('base_price', 0) * 0.8:
+            recs.append(f"Consider value-added features to justify higher price point")
+        
+        # Seasonal recommendations
+        if category_data.get('seasonality') != 'year-round':
+            recs.append(f"Plan inventory according to {category_data.get('seasonality')} demand patterns")
         
         # Marketing recommendations
         marketing = int(data['marketing'])
-        if marketing < 6:
-            recs.append("Increase marketing budget by 20-30%")
+        if marketing < 5:
+            recs.append("Increase marketing investment for better visibility")
         elif marketing > 8:
-            recs.append("Maintain high marketing levels")
+            recs.append("Maintain strong marketing presence")
         
-        # Seasonal recommendations
-        if 'seasonal' in category.lower():
-            recs.append(f"Launch 2-3 weeks before {PRODUCT_CATEGORIES[category]['seasonality']} season")
+        # Distribution recommendations
+        distribution = float(data['distribution_channels'])
+        if distribution < 5:
+            recs.append("Expand distribution channels for better market reach")
         
         return recs
 

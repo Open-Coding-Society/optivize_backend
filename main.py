@@ -876,3 +876,4 @@ def delete_leaderboard_entry():
         return jsonify({'message': f'Entry with ID {entry_id} has been deleted'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
