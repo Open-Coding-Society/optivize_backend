@@ -297,15 +297,20 @@ class productPredictionAPI(Resource):
             'range': f"{int(lower*100)}-{int(upper*100)}%",
             'confidence': "High" if (upper-lower) < 0.2 else "Medium"
         }
-
-    def _generate_recommendations(self, data, score, category):
-        """Generate actionable recommendations for general products"""
-        recs = []
         
-        # General recommendations based on score
+    def _generate_recommendations(self, data, score, category):
+        """Generate actionable recommendations for products with null checks and improved logic"""
+        recs = []
+        category_data = PRODUCT_CATEGORIES.get(category, {})
+        price = float(data.get('price', 0))
+        marketing = int(data.get('marketing', 0))
+        distribution = float(data.get('distribution_channels', 0))
+        
+        # General score-based recommendations
         if score >= 80:
             recs.append("Proceed with full-scale launch")
-            recs.append("Consider premium positioning")
+            if price > category_data.get('base_price', 0) * 1.1:
+                recs.append("Premium pricing strategy validated")
         elif score >= 70:
             recs.append("Proceed with standard launch")
             recs.append("Run targeted marketing campaign")
@@ -315,33 +320,63 @@ class productPredictionAPI(Resource):
         else:
             recs.append("Re-evaluate product concept")
             recs.append("Conduct market research")
-        
-        # Category-specific recommendations
-        category_data = PRODUCT_CATEGORIES.get(category, {})
-        price = float(data['price'])
-        
-        if price > category_data.get('base_price', 0) * 1.2:
-            recs.append(f"Consider price reduction to align with category average (~${category_data.get('base_price', 0):.2f})")
-        elif price < category_data.get('base_price', 0) * 0.8:
-            recs.append(f"Consider value-added features to justify higher price point")
-        
-        # Seasonal recommendations
-        if category_data.get('seasonality') != 'year-round':
-            recs.append(f"Plan inventory according to {category_data.get('seasonality')} demand patterns")
-        
+
+        # Price recommendations (only if we have valid price data)
+        if price > 0 and category_data.get('base_price'):
+            base_price = category_data['base_price']
+            price_diff_pct = ((price - base_price) / base_price) * 100
+            
+            if price > base_price * 1.2:
+                recs.append(f"Consider reducing price from ${price:.2f} to ~${base_price * 1.1:.2f} (+10% category average)")
+            elif price > base_price * 1.1:
+                recs.append(f"Price is {price_diff_pct:.1f}% above category average - ensure premium positioning")
+            elif price < base_price * 0.9:
+                recs.append(f"Consider increasing price from ${price:.2f} to ~${base_price:.2f} (category average)")
+            else:
+                recs.append("Price is well positioned within category range")
+
         # Marketing recommendations
-        marketing = int(data['marketing'])
-        if marketing < 5:
-            recs.append("Increase marketing investment for better visibility")
-        elif marketing > 8:
-            recs.append("Maintain strong marketing presence")
-        
+        if marketing > 0:
+            if marketing < 5:
+                recs.append(f"Increase marketing from {marketing}/10 to at least 6/10 for better visibility")
+            elif marketing < 7:
+                recs.append(f"Marketing at {marketing}/10 - consider boosting to 8/10 for stronger impact")
+            elif marketing > 8:
+                recs.append(f"Marketing at {marketing}/10 - maintain strong promotional support")
+
         # Distribution recommendations
-        distribution = float(data['distribution_channels'])
-        if distribution < 5:
-            recs.append("Expand distribution channels for better market reach")
+        if distribution > 0:
+            if distribution < 5:
+                recs.append(f"Expand distribution from {distribution}/10 to at least 7/10 for better reach")
+            elif distribution < 7:
+                recs.append(f"Distribution at {distribution}/10 - aim for 8/10 for optimal availability")
+            else:
+                recs.append(f"Distribution at {distribution}/10 - excellent channel coverage")
+
+        # Seasonal recommendations (only if seasonality exists)
+        if category_data.get('seasonality'):
+            current_season = data.get('seasonality', '').lower()
+            recommended_season = category_data['seasonality'].lower()
+            
+            if recommended_season == 'year-round':
+                recs.append("This product category performs well year-round")
+            elif recommended_season in current_season:
+                recs.append(f"Perfect seasonal timing ({current_season.capitalize()} matches best season)")
+            else:
+                recs.append(f"Best launched in {recommended_season.capitalize()} (current: {current_season.capitalize()})")
+
+        # Category-specific recommendations
+        if category == 'electronics':
+            recs.append("Consider extended warranty options for premium positioning")
+        elif category == 'fruits':
+            recs.append("Highlight freshness and sourcing in marketing")
+        elif category == 'sports':
+            recs.append("Feature athlete endorsements if applicable")
+
+        # Ensure we don't return empty or None recommendations
+        recs = [r for r in recs if r and not (str(r).strip() == 'None')]
         
-        return recs
+        return recs[:10]  # Return maximum 10 most relevant recommendations
 
 class productTrainingAPI(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
