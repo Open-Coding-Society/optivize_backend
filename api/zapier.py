@@ -12,52 +12,38 @@ zapier_api = Blueprint('zapier_api', __name__, url_prefix='/api/zapier')
 CORS(zapier_api, origins="*", methods=["GET", "POST", "OPTIONS"])
 
 @zapier_api.route('/low-stock/<int:item_id>/<int:threshold>', methods=['GET', 'OPTIONS'])
+@cross_origin(origins="*", methods=["GET", "OPTIONS"])  
 def get_low_stock_for_item(item_id, threshold):
-    """
-    Return low stock alert for a specific item based on threshold.
-    This endpoint is designed to be polled by Zapier to create automatic low stock alerts.
-    """
     try:
-        # Find the specific item
         item = Flashcard.query.get(item_id)
-        
         if not item:
-            return jsonify([]), 200  # Return empty array, not 404
+            return jsonify([]), 200
             
-        # Get the deck (category) information
         category = "Uncategorized"
         if item._deck_id:
             deck = Deck.query.filter_by(id=item._deck_id).first()
             if deck:
                 category = deck._title
         
-        # Parse quantity from content (format: "quantity / description")
         try:
-            # Parse the quantity from the content field
             if "/" in item._content:
                 parts = item._content.split("/", 1)
                 quantity = int(parts[0].strip())
                 
-                # Check if stock is below threshold
                 if quantity < threshold:
-                    # Return array format for Zapier
                     return jsonify([{
-                        "id": f"alert_{item.id}_{threshold}_{int(datetime.now().timestamp())}",  # Unique ID
-                        "item_id": item.id,
+                        "id": f"alert_{item.id}_{threshold}_{int(datetime.now().timestamp())}",
                         "name": item._title,
                         "quantity": quantity,
                         "threshold": threshold,
                         "category": category,
                         "description": parts[1].strip() if len(parts) > 1 else "",
-                        "message": f"LOW STOCK ALERT: {item._title} has only {quantity} items remaining (below threshold of {threshold})",
-                        "timestamp": datetime.now().isoformat()
+                        "message": f"LOW STOCK: {item._title} has {quantity} items (below {threshold})"
                     }])
-        except (ValueError, IndexError) as e:
-            current_app.logger.error(f"Error parsing item content: {str(e)}")
+        except (ValueError, IndexError):
+            pass
         
-        # Return empty array if no alert needed
         return jsonify([])
         
     except Exception as e:
-        current_app.logger.error(f"Error in low stock API: {str(e)}")
         return jsonify([]), 500
