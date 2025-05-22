@@ -115,6 +115,11 @@ def load_user(user_id):
 def inject_user():
     return dict(current_user=current_user)
 
+@app.before_request
+def load_logged_in_user():
+    g.current_user = current_user if current_user.is_authenticated else None
+
+
 # Helper function to check if the URL is safe for redirects
 def is_safe_url(target):
     ref_url = urlparse(request.host_url)
@@ -355,7 +360,7 @@ def get_help_response(q):
             "- **Create Group**: 'Create group [title]'.\n"
             "- **Delete Group**: 'Delete group [title]'.\n"
             "- **Group Info**: Ask 'What group is [item] in?'\n\n"
-            "You can also ask general academic questions, and I'll try my best to help!"
+            "You can also ask about flashcards, including ones you imported from Google Sheets!"
         )
 
  # Block prediction requests and redirect users
