@@ -1,6 +1,6 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, app, request, jsonify
 from flask_restful import Api, Resource
-from flask_cors import cross_origin
+from flask_cors import CORS, cross_origin
 from datetime import datetime
 from model.calendar import Event, Employee, Shipment
 from __init__ import db
@@ -11,7 +11,7 @@ api = Api(calendar_api_v3)
 
 # Allowed CORS origins
 allowed_origins = ["http://127.0.0.1:4887", "https://zafeera123.github.io"]
-
+CORS(app, origins=allowed_origins, supports_credentials=True)
 # ---------- EVENTS ----------
 class EventAPI(Resource):
     @cross_origin(origins=allowed_origins)
