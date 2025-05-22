@@ -46,7 +46,7 @@ def determine_category(product_type):
         return 'vegetables'
     elif any(x in product_type for x in ['phone', 'laptop', 'camera', 'electronic', 'PC', 'tablet', 'gadget']):
         return 'electronics'
-    elif any(x in product_type for x in ['shirt', 'pants', 'dress', 'jacket', 'jeans', 'sneakers', 'sweater', 'clothing']):
+    elif any(x in product_type for x in ['shirt', 'pants', 'dress', 'jacket', 'jeans', 'sneakers', 'sweater', 'clothing', 'socks', 'hat', 'scarf', 'gloves']):
         return 'clothing'
     elif any(x in product_type for x in ['ball', 'racket', 'bat', 'sport', 'exercise', 'fitness', 'gear', 'equipment']):
         return 'sports'
