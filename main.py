@@ -50,6 +50,7 @@ from api.profile import profile_api
 from api.tips import tips_api
 from api.leaderboard import leaderboard_api
 from api.calendarv2 import calendar_api_v3
+from api.google_api import google_api
 
 
 
@@ -93,6 +94,8 @@ app.register_blueprint(deck_api)
 app.register_blueprint(leaderboard_api)
 app.register_blueprint(calendar_api_v3)
 app.register_blueprint(zapier_api)
+app.register_blueprint(google_api)
+
 
 
 
@@ -111,6 +114,11 @@ def load_user(user_id):
 @app.context_processor
 def inject_user():
     return dict(current_user=current_user)
+
+@app.before_request
+def load_logged_in_user():
+    g.current_user = current_user if current_user.is_authenticated else None
+
 
 # Helper function to check if the URL is safe for redirects
 def is_safe_url(target):
@@ -352,7 +360,7 @@ def get_help_response(q):
             "- **Create Group**: 'Create group [title]'.\n"
             "- **Delete Group**: 'Delete group [title]'.\n"
             "- **Group Info**: Ask 'What group is [item] in?'\n\n"
-            "You can also ask general academic questions, and I'll try my best to help!"
+            "You can also ask about flashcards, including ones you imported from Google Sheets!"
         )
 
  # Block prediction requests and redirect users
@@ -876,3 +884,4 @@ def delete_leaderboard_entry():
         return jsonify({'message': f'Entry with ID {entry_id} has been deleted'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+

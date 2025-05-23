@@ -25,6 +25,14 @@ app.config['ADMIN_PASSWORD'] = os.environ.get('ADMIN_PASSWORD') or os.environ.ge
 app.config['DEFAULT_USER'] = os.environ.get('DEFAULT_USER') or 'user'
 app.config['DEFAULT_PASSWORD'] = os.environ.get('DEFAULT_PASSWORD') or 'password'
 
+app.config.update({
+    "SESSION_COOKIE_SAMESITE": "None",
+    "SESSION_COOKIE_SECURE": True,
+})
+app.config['SESSION_COOKIE_NAME'] = 'sess_python_flask'
+
+
+
 # Browser settings
 SECRET_KEY = os.environ.get('SECRET_KEY') or 'SECRET_KEY' # secret key for session management
 SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME') or 'sess_python_flask'
