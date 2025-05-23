@@ -1,4 +1,4 @@
-# imports from flask
+# Main.py, imports from flask
 import json
 from __init__ import app, db
 import google.generativeai as genai
@@ -25,6 +25,8 @@ from model.channel import Channel
 from api.deck import deck_api
 import numpy as np
 import random
+from api.zapier import zapier_api #import zapier_api
+
 
 
 # import "objects" from "this" project
@@ -42,7 +44,7 @@ from api.nestPost import nestPost_api  # Custom format
 from api.messages_api import messages_api  # Messages
 from api.flashcard import flashcard_api
 from api.vote import vote_api
-from api.studylog import cookie_api
+from api.studylog import product_api
 from api.gradelog import gradelog_api
 from api.profile import profile_api
 from api.tips import tips_api
@@ -61,13 +63,13 @@ from model.post import Post, initPosts
 from model.nestPost import NestPost, initNestPosts
 from model.vote import Vote, initVotes
 from model.flashcard import Flashcard, initFlashcards
-from model.studylog import CookieSalesPrediction
+from model.studylog import productSalesPrediction, initproductSalesPredictions
 from model.gradelog import initGradeLog
 from model.profiles import Profile, initProfiles
 from model.chatlog import ChatLog, initChatLogs
 from model.gradelog import GradeLog
 from model.deck import Deck, initDecks
-from model.calendar import initEvents
+from model.calendar import Event, initEvents
 from model.leaderboard import LeaderboardEntry, initLeaderboard
 # server only Views
 
@@ -83,13 +85,15 @@ app.register_blueprint(nestPost_api)
 app.register_blueprint(nestImg_api)
 app.register_blueprint(vote_api)
 app.register_blueprint(flashcard_api)
-app.register_blueprint(cookie_api)
+app.register_blueprint(product_api)
 app.register_blueprint(gradelog_api)
 app.register_blueprint(profile_api)
 app.register_blueprint(tips_api)
 app.register_blueprint(deck_api)
 app.register_blueprint(leaderboard_api)
 app.register_blueprint(calendar_api_v3)
+app.register_blueprint(zapier_api)
+
 
 
 
@@ -260,7 +264,8 @@ def generate_data():
     initDecks()
     initChatLogs()
     initProfiles()
-    CookieSalesPrediction()
+    productSalesPrediction()
+    initproductSalesPredictions()
     initLeaderboard()
 
 
@@ -283,7 +288,7 @@ def extract_data():
         data['decks'] = [deck.read() for deck in Deck.query.all()]
 #        data['channels'] = [channel.read() for channel in Channel.query.all()]
     #    data['posts'] = [post.read() for post in Post.query.all()]
-        data['studylogs'] = [log.read() for log in CookieSalesPrediction.query.all()]
+        data['studylogs'] = [log.read() for log in productSalesPrediction.query.all()]
         data['profiles'] = [log.read() for log in Profile.query.all()]
         data['flashcards'] = [log.read() for log in Flashcard.query.all()]
         data['chatlog'] = [log.read() for log in ChatLog.query.all()]
@@ -314,7 +319,7 @@ def restore_data(data):
         _ = Deck.restore(data['decks'])
         # _ = Channel.restore(data['channels'])
         #  _ = Post.restore(data['posts'])
-        _ = CookieSalesPrediction.restore(data['studylogs'])
+        _ = productSalesPrediction.restore(data['studylogs'])
         _ = GradeLog.restore(data['gradelog'])
         _ = Profile.restore(data['profiles'])
         _ = Flashcard.restore(data['flashcards'])
@@ -351,12 +356,12 @@ def get_help_response(q):
         )
 
  # Block prediction requests and redirect users
-    if any(phrase in q for phrase in ["can you make predictions", "make prediction", "can you predict", "predict cookie", "predict success"]):
+    if any(phrase in q for phrase in ["can you make predictions", "make prediction", "can you predict", "predict product", "predict success"]):
         return (
             "🚫 Sorry, I can’t make predictions here.\n\n"
             "👉 But you can visit the [Optivize Prediction Portal](https://zafeera123.github.io/optivize_frontend/navigation/log) to try it out!\n\n"
             "**Here’s how it works:**\n"
-            "- Enter your cookie's flavor, price, marketing effort, and distribution.\n"
+            "- Enter your product's type, price, marketing effort, and distribution.\n"
             "- Our AI model will give you a success score (0–100) along with business advice.\n"
             "- You’ll also get detailed insights on pricing, seasonality match, and marketing effectiveness.\n\n"
             "Let me know if you need help with inventory or flashcards!"
@@ -504,12 +509,12 @@ def handle_internal_intents(question: str):
         
 
 
-    if "predict cookie" in q or "cookie prediction" in q:
-        return "I cannot make cookie predictions here. I can only work with the inventory database. However, to get a cookie success prediction, provide: cookie flavor, seasonality, price, marketing score (1–10), and number of distribution channels."
-    elif "train cookie model" in q:
-        return "How it works is to train the cookie model, send a POST request to `/api/train` with at least 5 labeled cookie samples."
-    elif "cookie categories" in q:
-        return "Cookie categories include: chocolate, fruit, nut, seasonal, and premium. These affect pricing and seasonality."
+    if "predict product" in q or "product prediction" in q:
+        return "I cannot make product predictions here. I can only work with the inventory database. However, to get a product success prediction, provide: product type, seasonality, price, marketing score (1–10), and number of distribution channels."
+    elif "train product model" in q:
+        return "How it works is to train the product model, send a POST request to `/api/train` with at least 5 labeled product samples."
+    elif "product categories" in q:
+        return "product categories include: chocolate, fruit, nut, seasonal, and premium. These affect pricing and seasonality."
 
 
     # Shortcut: "add item [title] to group [group]"
@@ -706,15 +711,15 @@ def ai_homework_help():
             f"You are OptiBot, a customer service and product intelligence assistant.\n\n"
             f"Here’s what you should know about the user's product tools:\n"
             f"- They manage flashcards and groups (like decks).\n"
-            f"- They also use a **Cookie Sales Prediction API**, which:\n"
-            f"    • Uses features like cookie flavor, seasonality, price, marketing score, and distribution reach.\n"
+            f"- They also use a **product Sales Prediction API**, which:\n"
+            f"    • Uses features like product type, seasonality, price, marketing score, and distribution reach.\n"
             f"    • Predicts success likelihood using a trained Random Forest model.\n"
             f"    • Assigns scores and gives insights on pricing, seasonality, and marketing effectiveness.\n"
             f"    • Provides advice like 'Reformulate product concept' or 'Increase marketing budget'.\n\n"
             f"User’s decks:\n{deck_info}\n\n"
             f"User’s items:\n{flashcard_info}\n\n"
             f"User asks: {question}\n"
-            f"Respond clearly. If it’s about cookie prediction, use the rules and features described above."
+            f"Respond clearly. If it’s about product prediction, use the rules and features described above."
         )
 
 
@@ -805,6 +810,7 @@ def init_database():
                 initProfiles()
                 initGradeLog()
                 initDecks()
+                initproductSalesPredictions()
                 
             db.session.commit()
             print("Database initialized successfully")

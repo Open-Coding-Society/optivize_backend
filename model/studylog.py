@@ -2,13 +2,13 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from __init__ import app, db
 
-class CookieSalesPrediction(db.Model):
+class productSalesPrediction(db.Model):
     """
-    Enhanced Cookie Sales Prediction Model with additional fields for the API
+    Product Sales Prediction Model
     
     Attributes:
         id (int): Primary key
-        cookie_flavor (str): Cookie flavor name
+        product_type (str): Product type name
         seasonality (str): Seasonality factor
         price (float): Product price
         marketing (int): Marketing score (1-10)
@@ -18,23 +18,23 @@ class CookieSalesPrediction(db.Model):
         product_category (str): Product category
         date_created (DateTime): When record was created
     """
-    __tablename__ = 'cookie_sales_predictions'
+    __tablename__ = 'product_sales_predictions'
 
     id = db.Column(db.Integer, primary_key=True)
-    cookie_flavor = db.Column(db.String(255), nullable=False)
-    seasonality = db.Column(db.String(50), nullable=False)
-    price = db.Column(db.Float, nullable=False)
-    marketing = db.Column(db.Integer, nullable=False)
-    distribution_channels = db.Column(db.Float, nullable=False)
-    predicted_success = db.Column(db.Boolean, nullable=False)
-    success_score = db.Column(db.Float, nullable=False)
-    product_category = db.Column(db.String(50), nullable=False)
+    product_type = db.Column(db.String(255), nullable=True)  # Made nullable for initialization
+    seasonality = db.Column(db.String(50), nullable=True)    # Made nullable for initialization
+    price = db.Column(db.Float, nullable=True)              # Made nullable for initialization
+    marketing = db.Column(db.Integer, nullable=True)        # Made nullable for initialization
+    distribution_channels = db.Column(db.Float, nullable=True) # Made nullable for initialization
+    predicted_success = db.Column(db.Boolean, nullable=True)  # Made nullable for initialization
+    success_score = db.Column(db.Float, nullable=True)       # Made nullable for initialization
+    product_category = db.Column(db.String(50), nullable=True) # Made nullable for initialization
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def __init__(self, cookie_flavor, seasonality, price, marketing, 
-                 distribution_channels, predicted_success, success_score, 
-                 product_category):
-        self.cookie_flavor = cookie_flavor
+    def __init__(self, product_type=None, seasonality=None, price=None, marketing=None, 
+                 distribution_channels=None, predicted_success=None, success_score=None, 
+                 product_category=None):
+        self.product_type = product_type
         self.seasonality = seasonality
         self.price = price
         self.marketing = marketing
@@ -62,7 +62,7 @@ class CookieSalesPrediction(db.Model):
         """Return dictionary representation of the record"""
         return {
             "id": self.id,
-            "cookie_flavor": self.cookie_flavor,
+            "product_type": self.product_type,
             "seasonality": self.seasonality,
             "price": self.price,
             "marketing": self.marketing,
@@ -87,8 +87,34 @@ class CookieSalesPrediction(db.Model):
         db.session.commit()
         return None
 
-def initCookieSalesPredictions():
-    """Initialize the database table"""
+def initproductSalesPredictions():
+    """Initialize the database table - drops existing table and creates new one"""
     with app.app_context():
-        db.create_all()
-        app.logger.info("CookieSalesPrediction table initialized")
+        try:
+            # Drop the table if it exists
+            db.drop_all()
+            app.logger.info("Dropped existing product_sales_predictions table")
+            
+            # Create all tables
+            db.create_all()
+            app.logger.info("Created new product_sales_predictions table")
+            
+            # Optional: Add a test record
+            test_record = productSalesPrediction(
+                product_type="Sample Product",
+                seasonality="All Year",
+                price=19.99,
+                marketing=7,
+                distribution_channels=8,
+                predicted_success=True,
+                success_score=85.0,
+                product_category="Sample"
+            )
+            db.session.add(test_record)
+            db.session.commit()
+            app.logger.info("Added test record to product_sales_predictions table")
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error initializing product sales predictions table: {e}")
+            raise
