@@ -11,6 +11,7 @@ api = Api(calendar_api_v3)
 
 
 
+
 class CalendarAPIV3(Resource):
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def get(self):
