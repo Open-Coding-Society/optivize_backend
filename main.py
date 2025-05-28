@@ -686,7 +686,7 @@ def get_flashcards_by_keyword(keyword):
     return "\n".join([f"- {fc.read()['title']}: {fc.read()['content']}" for fc in flashcards])
 
 
-genai.configure(api_key="AIzaSyD7DQZlIvCo79fjHjUBYrApmFkRKZ12HSE")
+genai.configure(api_key="AIzaSyCK1wRuBLOdILsAxBziCOSFTdprVruzQUE")
 model = genai.GenerativeModel('gemini-2.0-flash')
 @app.route('/api/ai/help', methods=['POST'])
 @token_required()
