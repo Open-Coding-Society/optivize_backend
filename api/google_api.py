@@ -9,7 +9,10 @@ google_api = Blueprint('google_api', __name__, url_prefix='/google')
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+GOOGLE_REDIRECT_URI_LOCAL = os.getenv("GOOGLE_REDIRECT_URI_LOCAL")
+GOOGLE_REDIRECT_URI_DEPLOYED = os.getenv("GOOGLE_REDIRECT_URI_DEPLOYED")
+FRONTEND_REDIRECT_LOCAL = os.getenv("FRONTEND_REDIRECT_LOCAL")
+FRONTEND_REDIRECT_DEPLOYED = os.getenv("FRONTEND_REDIRECT_DEPLOYED")
 
 @google_api.route('/connect')
 @login_required
@@ -17,7 +20,7 @@ def google_connect():
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
         "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "redirect_uri": GOOGLE_REDIRECT_URI_DEPLOYED if "onrender.com" in request.host else GOOGLE_REDIRECT_URI_LOCAL,
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/spreadsheets.readonly",
         "access_type": "offline",
@@ -37,7 +40,7 @@ def google_callback():
         "code": code,
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "redirect_uri": GOOGLE_REDIRECT_URI_DEPLOYED if "onrender.com" in request.host else GOOGLE_REDIRECT_URI_LOCAL,
         "grant_type": "authorization_code"
     }
 
@@ -50,7 +53,9 @@ def google_callback():
         return jsonify(token_data), 400
 
     session["google_access_token"] = token_data["access_token"]
-    return redirect("http://127.0.0.1:4887/optivize_frontend/flashcards?import=1")
+    frontend_redirect = os.getenv("FRONTEND_REDIRECT_DEPLOYED") if "onrender.com" in request.host else os.getenv("FRONTEND_REDIRECT_LOCAL")
+    return redirect(frontend_redirect)
+
 
 @google_api.route('/import', methods=['POST'])
 @login_required
