@@ -847,6 +847,10 @@ def init_database():
         print(f"Database initialization error: {str(e)}")
         db.session.rollback()
 
+@app.before_first_request
+def initialize_on_startup():
+    print("🔄 Running init_database() on first request...")
+    init_database()
 
 
 if __name__ == "__main__":
@@ -860,7 +864,6 @@ if __name__ == "__main__":
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
         
     app.config['TIMEZONE'] = 'America/Los_Angeles'
-    init_database()
     app.run(host="0.0.0.0", port="8212")
 
 
