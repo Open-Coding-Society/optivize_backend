@@ -62,11 +62,11 @@ def import_from_google_sheets():
 
     sheet_id = request.json.get("sheet_id")
     access_token = session.get("google_access_token")
-
-    user_id = request.json.get("user_id")
+    
+    # ✅ Correct way to get user_id:
+    user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
-
 
     if not access_token or not sheet_id:
         return jsonify({"error": "Missing token or sheet ID"}), 400
@@ -80,17 +80,12 @@ def import_from_google_sheets():
     if not values or len(values) < 2:
         return jsonify({"error": "No rows found"}), 400
 
-    rows = values  
-
-
-    # Detect important columns
-    title_index = next((i for i, h in enumerate(headers) if "title" in h.lower() or "name" in h.lower()), 0)
-    quantity_index = next((i for i, h in enumerate(headers) if re.search(r'amount|qty|quantity|stock|count', h.lower())), None)
+    rows = values
 
     group_name = "Google Sheet Import"
     deck = Deck.query.filter_by(_title=group_name, _user_id=user_id).first()
     if not deck:
-        deck = Deck(title=group_name, user_id=current_user.id)
+        deck = Deck(title=group_name, user_id=user_id)
         db.session.add(deck)
         db.session.commit()
 
@@ -129,6 +124,5 @@ def import_from_google_sheets():
         except Exception as e:
             db.session.rollback()
             print(f"❌ Error with row {row}: {e}")
-
 
     return jsonify({"message": f"Imported {success_count} items to group: {group_name}"}), 200
