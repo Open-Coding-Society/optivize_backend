@@ -15,6 +15,7 @@ FRONTEND_REDIRECT_LOCAL = os.getenv("FRONTEND_REDIRECT_LOCAL")
 FRONTEND_REDIRECT_DEPLOYED = os.getenv("FRONTEND_REDIRECT_DEPLOYED")
 
 @google_api.route('/connect')
+@login_required
 def google_connect():
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
@@ -28,6 +29,7 @@ def google_connect():
     return redirect(f"{auth_url}?{urlencode(params)}")
 
 @google_api.route('/callback')
+@login_required
 def google_callback():
     code = request.args.get("code")
     if not code:
