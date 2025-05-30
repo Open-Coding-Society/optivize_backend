@@ -362,20 +362,11 @@ def get_help_response(q):
             "- **Create Group**: 'Create group [title]'.\n"
             "- **Delete Group**: 'Delete group [title]'.\n"
             "- **Group Info**: Ask 'What group is [item] in?'\n\n"
+            "- **Predict Product**: 'predict product: type=[type], seasonality=[season], price=[price], marketing=[1-10], distribution=[1-10]'.\n"
+            "- Example: `predict product: type=chocolate bar, seasonality=holiday, price=3.99, marketing=8, distribution=9`\n\n"
             "You can also ask about flashcards, including ones you imported from Google Sheets!"
         )
 
- # Block prediction requests and redirect users
-    if any(phrase in q for phrase in ["can you make predictions", "make prediction", "can you predict", "predict product", "predict success"]):
-        return (
-            "🚫 Sorry, I can’t make predictions here.\n\n"
-            "👉 But you can visit the [Optivize Prediction Portal](https://zafeera123.github.io/optivize_frontend/navigation/log) to try it out!\n\n"
-            "**Here’s how it works:**\n"
-            "- Enter your product's type, price, marketing effort, and distribution.\n"
-            "- Our AI model will give you a success score (0–100) along with business advice.\n"
-            "- You’ll also get detailed insights on pricing, seasonality match, and marketing effectiveness.\n\n"
-            "Let me know if you need help with inventory or flashcards!"
-        )
 
 def list_user_flashcards():
     user_id = g.current_user.id
@@ -518,13 +509,67 @@ def handle_internal_intents(question: str):
     user_id = g.current_user.id
 
 
-
     if "predict product" in q or "product prediction" in q:
-        return "I cannot make product predictions here. I can only work with the inventory database. However, to get a product success prediction, provide: product type, seasonality, price, marketing score (1–10), and number of distribution channels."
-    elif "train product model" in q:
-        return "How it works is to train the product model, send a POST request to `/api/train` with at least 5 labeled product samples."
-    elif "product categories" in q:
-        return "product categories include: chocolate, fruit, nut, seasonal, and premium. These affect pricing and seasonality."
+        import re
+        import requests
+
+        # Match input pattern like: predict product: type=fruit, seasonality=summer, price=5.99, marketing=7, distribution=8
+        match = re.search(
+            r'predict product.*type\s*=\s*(.*?),\s*seasonality\s*=\s*(.*?),\s*price\s*=\s*([\d\.]+),\s*marketing\s*=\s*(\d+),\s*distribution\s*=\s*(\d+)', 
+            q
+        )
+
+        if match:
+            product_type = match.group(1).strip()
+            seasonality = match.group(2).strip()
+            price = float(match.group(3))
+            marketing = int(match.group(4))
+            distribution_channels = int(match.group(5))
+
+            # Prepare payload
+            payload = {
+                "product_type": product_type,
+                "seasonality": seasonality,
+                "price": price,
+                "marketing": marketing,
+                "distribution_channels": distribution_channels
+            }
+
+            # Choose correct URL depending on deployment
+            if request.host.startswith("127.") or "localhost" in request.host:
+                predict_url = "http://127.0.0.1:8212/api/predict"
+            else:
+                predict_url = "https://optivize.stu.nighthawkcodingsociety.com/api/predict"
+
+            try:
+                response = requests.post(predict_url, json=payload)
+                response.raise_for_status()
+                result = response.json()
+
+                # Format reply
+                reply = (
+                    f"🎯 **Prediction Result:**\n"
+                    f"- Score: {result.get('score', 'N/A')}\n"
+                    f"- Success: {'✅ Yes' if result.get('is_success') else '❌ No'}\n"
+                    f"- Category: {result.get('category', 'N/A')}\n\n"
+                    f"**Top Recommendations:**\n"
+                )
+                for rec in result.get('insights', {}).get('recommendations', []):
+                    reply += f"- {rec}\n"
+
+                return reply
+
+            except Exception as e:
+                print("Prediction API error:", e)
+                return f"⚠️ Error contacting Prediction API: {str(e)}\n\nPlease check your input or try again."
+
+        else:
+            return (
+                "To make a prediction, use this format:\n\n"
+                "**predict product: type=fruit, seasonality=summer, price=5.99, marketing=7, distribution=8**\n\n"
+                "Example:\n"
+                "`predict product: type=chocolate bar, seasonality=holiday, price=3.99, marketing=8, distribution=9`"
+            )
 
 
     # Shortcut: "add item [title] to group [group]"
@@ -846,7 +891,6 @@ def init_database():
     except Exception as e:
         print(f"Database initialization error: {str(e)}")
         db.session.rollback()
-
 
 
 
