@@ -115,7 +115,11 @@ def inject_user():
 
 @app.before_request
 def load_logged_in_user():
-    g.current_user = current_user if current_user.is_authenticated else None
+    try:
+        g.current_user = current_user if current_user.is_authenticated else None
+    except Exception as e:
+        g.current_user = None
+
 
 
 # Helper function to check if the URL is safe for redirects
