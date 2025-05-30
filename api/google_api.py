@@ -46,15 +46,13 @@ def google_callback():
 
     r = requests.post(token_url, data=data)
     token_data = r.json()
-    session["google_access_token"] = token_data["access_token"]
-    print("🔑 Google Access Token:", session["google_access_token"])
 
     if "access_token" not in token_data:
         return jsonify(token_data), 400
 
     session["google_access_token"] = token_data["access_token"]
-    frontend_redirect = os.getenv("FRONTEND_REDIRECT_DEPLOYED") if "onrender.com" in request.host else os.getenv("FRONTEND_REDIRECT_LOCAL")
-    return redirect(frontend_redirect)
+    frontend_redirect = FRONTEND_REDIRECT_DEPLOYED if "onrender.com" in request.host else FRONTEND_REDIRECT_LOCAL
+    return redirect(f"{frontend_redirect}?import=1")
 
 
 @google_api.route('/import', methods=['POST'])
