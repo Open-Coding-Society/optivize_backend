@@ -885,3 +885,9 @@ def delete_leaderboard_entry():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Temporary route to create DB
+@app.route('/create_db')
+def create_db():
+    from __init__ import db
+    db.create_all()
+    return "✅ Database created!"
