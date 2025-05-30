@@ -1,4 +1,4 @@
-# Main.py, imports from flask
+# Main.py, imports from flaskMore actions
 import json
 from __init__ import app, db
 import google.generativeai as genai
@@ -104,7 +104,7 @@ login_manager.login_view = "login"
 @login_manager.unauthorized_handler
 def unauthorized_callback():
     return redirect(url_for('login', next=request.path))
- 
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -228,7 +228,7 @@ def delete_user(user_id):
 def reset_password(user_id):
     if current_user.role != 'Admin':
         return jsonify({'error': 'Unauthorized'}), 403
-    
+
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -302,7 +302,7 @@ def extract_data():
         data['profiles'] = [log.read() for log in Profile.query.all()]
         data['flashcards'] = [log.read() for log in Flashcard.query.all()]
         data['chatlog'] = [log.read() for log in ChatLog.query.all()]
-            
+
 
     return data
 
@@ -456,7 +456,7 @@ def update_flashcard(title, new_content, user_id):
     ).first()
     if not flashcard:
         return f"Flashcard titled '{title}' not found for your account."
-    
+
     flashcard._content = new_content
     db.session.commit()
     return f"Flashcard '{flashcard._title}' was updated successfully."
@@ -516,7 +516,7 @@ pending_intents = {}  # temp dictionary: user_id -> {'action': ..., 'title': ...
 def handle_internal_intents(question: str):
     q = question.lower()
     user_id = g.current_user.id
-        
+
 
 
     if "predict product" in q or "product prediction" in q:
@@ -540,7 +540,7 @@ def handle_internal_intents(question: str):
             print("Add item to group failed:", e)
             return "Sorry, I couldn’t parse that. Try: 'add item apple to group snacks'"
 
-    
+
     # Step 1: Handle follow-ups for staged actions
     if user_id in pending_intents:
         intent = pending_intents[user_id]
@@ -585,7 +585,7 @@ def handle_internal_intents(question: str):
             return f"What group would you like to add the item '{title}' to?"
         except Exception:
             return "Sorry, I couldn’t parse the item creation request."
-    
+
     import re
 
     if "update group" in q and "to" in q:
@@ -793,10 +793,10 @@ def delete_ai_chat_logs():
         return jsonify({"error": "Chat log not found."}), 404
     log.delete()
     return jsonify({"response": "Chat log deleted"}), 200
-    
 
 
-    
+
+
 @app.route('/api/data')
 def get_data():
     InfoDb = [
@@ -815,7 +815,7 @@ def init_database():
         with app.app_context():
             # Always create tables if missing
             db.create_all()
-            
+
             if FORCE_CREATE_DB:
                 print("⚠️ Force-creating DB tables...")
                 db.session.commit()
@@ -832,7 +832,7 @@ def init_database():
                     db.session.add(user)
                     db.session.commit()
                     print("✅ Added user: toby")
-            
+
             # Also run init functions if no data
             if not User.query.first():
                 initUsers()
@@ -847,10 +847,10 @@ def init_database():
         print(f"Database initialization error: {str(e)}")
         db.session.rollback()
 
-@app.before_first_request
-def initialize_on_startup():
-    print("🔄 Running init_database() on first request...")
-    init_database()
+
+
+
+
 
 
 if __name__ == "__main__":
@@ -862,8 +862,9 @@ if __name__ == "__main__":
         # Development settings
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/volumes/user_management.db'
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
-        
+
     app.config['TIMEZONE'] = 'America/Los_Angeles'
+    init_database()
     app.run(host="0.0.0.0", port="8212")
 
 
@@ -906,5 +907,3 @@ def delete_leaderboard_entry():
         return jsonify({'message': f'Entry with ID {entry_id} has been deleted'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
