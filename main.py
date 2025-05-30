@@ -97,33 +97,6 @@ app.register_blueprint(zapier_api)
 app.register_blueprint(google_api)
 
 
-import os
-
-with app.app_context():
-    if os.getenv("FORCE_CREATE_DB") == "True":
-        print("⚠️ Force-creating DB tables...")
-        db.drop_all()
-        db.create_all()
-        print("✅ DB tables created!")
-        
-        # Add Toby user
-        from model.user import User
-
-        admin = User(
-            name="Toby",
-            uid="toby",
-            password="123Toby!",   # plain password, will be hashed by set_password()
-            role="Admin",
-            pfp='',
-            email="toby@example.com"
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Added user: toby")
-
-
-
-
 
 # Tell Flask-Login the view function name of your login route
 login_manager.login_view = "login"
