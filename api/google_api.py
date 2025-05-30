@@ -50,6 +50,7 @@ def google_callback():
         return jsonify(token_data), 400
 
     session["google_access_token"] = token_data["access_token"]
+    session["user_id"] = current_user.id
     frontend_redirect = FRONTEND_REDIRECT_DEPLOYED if "onrender.com" in request.host else FRONTEND_REDIRECT_LOCAL
     return redirect(f"{frontend_redirect}?import=1")
 
