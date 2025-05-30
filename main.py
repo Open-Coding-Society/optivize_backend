@@ -888,6 +888,10 @@ def delete_leaderboard_entry():
 # Temporary route to create DB
 @app.route('/create_db')
 def create_db():
-    from __init__ import db
-    db.create_all()
-    return "✅ Database created!"
+    with app.app_context():
+        if os.getenv("FORCE_CREATE_DB") == "True":
+            print("⚠️ Force-creating DB tables...")
+            db.drop_all()
+            db.create_all()
+            print("✅ DB tables created!")
+
