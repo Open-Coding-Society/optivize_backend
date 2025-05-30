@@ -1,7 +1,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name optivize.stu.nighthawkcodingsociety.com;
+    server_name optivize.opencodingsociety.com;
 
     location / { 
         proxy_pass http://localhost:8212;
