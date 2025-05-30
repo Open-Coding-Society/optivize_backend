@@ -808,25 +808,45 @@ def get_data():
     ]
     return jsonify(InfoDb)
 
+FORCE_CREATE_DB = False
+
 def init_database():
     try:
         with app.app_context():
-            # Create all tables at once
+            # Always create tables if missing
             db.create_all()
             
-            # Only initialize data if tables are empty
+            if FORCE_CREATE_DB:
+                print("⚠️ Force-creating DB tables...")
+                db.session.commit()
+
+                if not User.query.filter_by(_uid="toby").first():
+                    user = User(
+                        name="Toby",
+                        uid="toby",
+                        email="toby@example.com",
+                        password=generate_password_hash("123Toby!"),
+                        role="Admin",
+                        pfp=""
+                    )
+                    db.session.add(user)
+                    db.session.commit()
+                    print("✅ Added user: toby")
+            
+            # Also run init functions if no data
             if not User.query.first():
                 initUsers()
                 initProfiles()
                 initGradeLog()
                 initDecks()
                 initproductSalesPredictions()
-                
+
             db.session.commit()
-            print("Database initialized successfully")
+            print("✅ Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {str(e)}")
         db.session.rollback()
+
 
 
 if __name__ == "__main__":
@@ -842,30 +862,6 @@ if __name__ == "__main__":
     app.config['TIMEZONE'] = 'America/Los_Angeles'
     init_database()
     app.run(host="0.0.0.0", port="8212")
-
-
-with app.app_context():
-    if os.getenv("FORCE_CREATE_DB") == "True":
-        print("⚠️ Force-creating DB tables...")
-        db.drop_all()
-        db.create_all()
-        print("✅ DB tables created!")
-        
-        from model.user import User
-        from werkzeug.security import generate_password_hash
-
-        admin = User(
-            name="Toby",
-            uid="toby",
-            password="123Toby!",
-            role="Admin",
-            pfp='',
-            email="toby@example.com"
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Added user: toby")
-
 
 
 
