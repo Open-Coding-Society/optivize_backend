@@ -55,13 +55,17 @@ def google_callback():
 
 
 @google_api.route('/import', methods=['POST'])
-@login_required
 def import_from_google_sheets():
     from __init__ import db
     import re
 
     sheet_id = request.json.get("sheet_id")
     access_token = session.get("google_access_token")
+
+    user_id = request.json.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
 
     if not access_token or not sheet_id:
         return jsonify({"error": "Missing token or sheet ID"}), 400
@@ -83,7 +87,7 @@ def import_from_google_sheets():
     quantity_index = next((i for i, h in enumerate(headers) if re.search(r'amount|qty|quantity|stock|count', h.lower())), None)
 
     group_name = "Google Sheet Import"
-    deck = Deck.query.filter_by(_title=group_name, _user_id=current_user.id).first()
+    deck = Deck.query.filter_by(_title=group_name, _user_id=user_id).first()
     if not deck:
         deck = Deck(title=group_name, user_id=current_user.id)
         db.session.add(deck)
@@ -111,7 +115,7 @@ def import_from_google_sheets():
             flashcard = Flashcard(
                 title=title,
                 content=content,
-                user_id=current_user.id,
+                user_id=user_id,
                 deck_id=deck.id
             )
 
