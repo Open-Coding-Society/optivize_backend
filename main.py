@@ -108,18 +108,19 @@ with app.app_context():
         
         # Add Toby user
         from model.user import User
-        from werkzeug.security import generate_password_hash
 
         admin = User(
-            _name="Toby",
-            _uid="toby",
-            _email="toby@example.com",
-            _password=generate_password_hash("123Toby!"),  # Hashed password!
-            _role="admin"
+            name="Toby",
+            uid="toby",
+            password="123Toby!",   # plain password, will be hashed by set_password()
+            role="Admin",
+            pfp='',
+            email="toby@example.com"
         )
         db.session.add(admin)
         db.session.commit()
         print("✅ Added user: toby")
+
 
 
 
