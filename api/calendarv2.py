@@ -11,105 +11,158 @@ api = Api(calendar_api_v3)
 # Allowed CORS origins
 allowed_origins = ["http://127.0.0.1:4887", "https://zafeera123.github.io"]
 
-# ---------- EVENTS ----------
-class EventAPI(Resource):
-    @cross_origin(origins=allowed_origins)
-    def get(self):
-        try:
-            events = Event.query.all()
-            events_data = [{
-                'id': event.id,
-                'title': event.title,
-                'description': event.description,
-                'start_time': event.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'end_time': event.end_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'category': event.category
-            } for event in events]
 
-            return jsonify({'success': True, 'events': events_data})
-        except Exception as e:
-            return {'message': f'Failed to retrieve events: {str(e)}'}, 500
+from flask import Flask, request, jsonify
+from flask_restful import Resource, Api, abort
+
+app = Flask(__name__)
+api = Api(app)
+
+# In-memory data stores
+EVENTS = {}
+SHIPMENTS = {}
+TASKS = {}
+EMPLOYEES = {}
+
+def abort_if_not_found(data_dict, resource_id, resource_name):
+    if resource_id not in data_dict:
+        abort(404, message=f"{resource_name} {resource_id} not found")
+
+def validate_fields(data, required_fields):
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        abort(400, message=f"Missing required fields: {', '.join(missing)}")
+
+
+class EventList(Resource):
+
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    def get(self):
+        return jsonify(list(EVENTS.values()))
 
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def post(self):
-        data = request.get_json()
-        required_fields = ['title', 'description', 'start_time', 'end_time', 'category']
-        if missing := [f for f in required_fields if f not in data]:
-            return {'message': 'Missing required fields', 'missing': missing}, 400
-
-        try:
-            start_time = datetime.strptime(data['start_time'], '%Y-%m-%d %H:%M:%S')
-            end_time = datetime.strptime(data['end_time'], '%Y-%m-%d %H:%M:%S')
-
-            event = Event(
-                title=data['title'],
-                description=data['description'],
-                start_time=start_time,
-                end_time=end_time,
-                category=data['category']
-            )
-
-            db.session.add(event)
-            db.session.commit()
-
-            return jsonify({
-                'success': True,
-                'message': 'Event created successfully',
-                'event_id': event.id
-            })
-
-        except Exception as e:
-            return {'message': f'Failed to create event: {str(e)}'}, 500
+        data = request.get_json(force=True)
+        required_fields = ["date", "title", "description", "category"]
+        validate_fields(data, required_fields)
+        event_id = str(len(EVENTS) + 1)
+        data['id'] = event_id
+        EVENTS[event_id] = data
+        return jsonify(data), 201
 
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def put(self):
-        data = request.get_json()
-        if 'id' not in data:
-            return {'message': 'Missing event ID'}, 400
-
-        event = Event.query.get(data['id'])
-        if not event:
-            return {'message': 'Event not found'}, 404
-
-        try:
-            event.title = data.get('title', event.title)
-            event.description = data.get('description', event.description)
-            event.start_time = datetime.strptime(data['start_time'], '%Y-%m-%d %H:%M:%S') if 'start_time' in data else event.start_time
-            event.end_time = datetime.strptime(data['end_time'], '%Y-%m-%d %H:%M:%S') if 'end_time' in data else event.end_time
-            event.category = data.get('category', event.category)
-
-            db.session.commit()
-
-            return jsonify({
-                'success': True,
-                'message': 'Event updated successfully',
-                'event_id': event.id
-            })
-
-        except Exception as e:
-            return {'message': f'Failed to update event: {str(e)}'}, 500
+        data = request.get_json(force=True)
+        event_id = data.get("id")
+        abort_if_not_found(EVENTS, event_id, "Event")
+        required_fields = ["date", "title", "description", "category"]
+        validate_fields(data, required_fields)
+        EVENTS[event_id] = data
+        return jsonify(data)
 
     @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
     def delete(self):
-        data = request.get_json()
-        if 'id' not in data:
-            return {'message': 'Missing event ID'}, 400
+        data = request.get_json(force=True)
+        event_id = data.get("id")
+        abort_if_not_found(EVENTS, event_id, "Event")
+        del EVENTS[event_id]
+        return '', 204
 
-        event = Event.query.get(data['id'])
-        if not event:
-            return {'message': 'Event not found'}, 404
 
-        try:
-            db.session.delete(event)
-            db.session.commit()
 
-            return jsonify({
-                'success': True,
-                'message': 'Event deleted successfully',
-                'event_id': event.id
-            })
+class ShipmentList(Resource):
+    def get(self):
+        return jsonify(list(SHIPMENTS.values()))
 
-        except Exception as e:
-            return {'message': f'Failed to delete event: {str(e)}'}, 500
+    def post(self):
+        data = request.get_json(force=True)
+        required_fields = ["shipment_date", "item", "quantity", "destination"]
+        validate_fields(data, required_fields)
+        shipment_id = str(len(SHIPMENTS) + 1)
+        data['id'] = shipment_id
+        SHIPMENTS[shipment_id] = data
+        return jsonify(data), 201
 
-# Register the new resource
+    def put(self):
+        data = request.get_json(force=True)
+        shipment_id = data.get("id")
+        abort_if_not_found(SHIPMENTS, shipment_id, "Shipment")
+        required_fields = ["shipment_date", "item", "quantity", "destination"]
+        validate_fields(data, required_fields)
+        SHIPMENTS[shipment_id] = data
+        return jsonify(data)
+
+    def delete(self):
+        data = request.get_json(force=True)
+        shipment_id = data.get("id")
+        abort_if_not_found(SHIPMENTS, shipment_id, "Shipment")
+        del SHIPMENTS[shipment_id]
+        return '', 204
+
+
+class TaskList(Resource):
+    def get(self):
+        return jsonify(list(TASKS.values()))
+
+    def post(self):
+        data = request.get_json(force=True)
+        required_fields = ["due_date", "title", "priority", "status"]
+        validate_fields(data, required_fields)
+        task_id = str(len(TASKS) + 1)
+        data['id'] = task_id
+        TASKS[task_id] = data
+        return jsonify(data), 201
+
+    def put(self):
+        data = request.get_json(force=True)
+        task_id = data.get("id")
+        abort_if_not_found(TASKS, task_id, "Task")
+        required_fields = ["due_date", "title", "priority", "status"]
+        validate_fields(data, required_fields)
+        TASKS[task_id] = data
+        return jsonify(data)
+
+    def delete(self):
+        data = request.get_json(force=True)
+        task_id = data.get("id")
+        abort_if_not_found(TASKS, task_id, "Task")
+        del TASKS[task_id]
+        return '', 204
+
+
+class EmployeeList(Resource):
+    def get(self):
+        return jsonify(list(EMPLOYEES.values()))
+
+    def post(self):
+        data = request.get_json(force=True)
+        required_fields = ["name", "position", "department", "email"]
+        validate_fields(data, required_fields)
+        employee_id = str(len(EMPLOYEES) + 1)
+        data['id'] = employee_id
+        EMPLOYEES[employee_id] = data
+        return jsonify(data), 201
+
+    def put(self):
+        data = request.get_json(force=True)
+        employee_id = data.get("id")
+        abort_if_not_found(EMPLOYEES, employee_id, "Employee")
+        required_fields = ["name", "position", "department", "email"]
+        validate_fields(data, required_fields)
+        EMPLOYEES[employee_id] = data
+        return jsonify(data)
+
+    def delete(self):
+        data = request.get_json(force=True)
+        employee_id = data.get("id")
+        abort_if_not_found(EMPLOYEES, employee_id, "Employee")
+        del EMPLOYEES[employee_id]
+        return '', 204
+
+
+# Register only list-level resources
+api.add_resource(EventList, '/api/events')
+api.add_resource(ShipmentList, '/api/shipments')
+api.add_resource(TaskList, '/api/tasks')
+api.add_resource(EmployeeList, '/api/employees')
+
