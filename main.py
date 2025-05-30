@@ -844,6 +844,27 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port="8212")
 
 
+with app.app_context():
+    if os.getenv("FORCE_CREATE_DB") == "True":
+        print("⚠️ Force-creating DB tables...")
+        db.drop_all()
+        db.create_all()
+        print("✅ DB tables created!")
+        
+        from model.user import User
+        from werkzeug.security import generate_password_hash
+
+        admin = User(
+            name="Toby",
+            uid="toby",
+            password="123Toby!",
+            role="Admin",
+            pfp='',
+            email="toby@example.com"
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Added user: toby")
 
 
 
