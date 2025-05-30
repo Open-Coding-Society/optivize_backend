@@ -1,3 +1,12 @@
+import os
+
+with app.app_context():
+    if os.getenv("FORCE_CREATE_DB") == "True":
+        print("⚠️ Force-creating DB tables...")
+        db.drop_all()
+        db.create_all()
+        print("✅ DB tables created!")
+
 # Main.py, imports from flask
 import json
 from __init__ import app, db
@@ -885,13 +894,4 @@ def delete_leaderboard_entry():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Temporary route to create DB
-@app.route('/create_db')
-def create_db():
-    with app.app_context():
-        if os.getenv("FORCE_CREATE_DB") == "True":
-            print("⚠️ Force-creating DB tables...")
-            db.drop_all()
-            db.create_all()
-            print("✅ DB tables created!")
 
