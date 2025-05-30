@@ -105,6 +105,22 @@ with app.app_context():
         db.drop_all()
         db.create_all()
         print("✅ DB tables created!")
+        
+        # Add Toby user
+        from model.user import User
+        from werkzeug.security import generate_password_hash
+
+        admin = User(
+            _name="Toby",
+            _uid="toby",
+            _email="toby@example.com",
+            _password=generate_password_hash("123Toby!"),  # Hashed password!
+            _role="admin"
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Added user: toby")
+
 
 
 
