@@ -270,6 +270,7 @@ def generate_data():
     initFlashcards()
     initDecks()
     # initChannels()
+    initEvents()
     # initPosts()
     initDecks()
     initChatLogs()
@@ -583,7 +584,7 @@ def handle_internal_intents(question: str):
             return f"Okay, I've added '{title}' to the '{group_title}' group."
         except Exception as e:
             print("Add item to group failed:", e)
-            return "Sorry, I couldn’t parse that. Try: 'add item apple to group snacks'"
+            return "Sorry, I couldn't parse that. Try: 'add item apple to group snacks'"
 
 
     # Step 1: Handle follow-ups for staged actions
@@ -629,7 +630,7 @@ def handle_internal_intents(question: str):
             }
             return f"What group would you like to add the item '{title}' to?"
         except Exception:
-            return "Sorry, I couldn’t parse the item creation request."
+            return "Sorry, I couldn't parse the item creation request."
 
     import re
 
@@ -640,7 +641,7 @@ def handle_internal_intents(question: str):
             new_title = match.group(2).strip()
             return update_group(old_title, new_title, user_id)
         else:
-            return "Sorry, I couldn’t update the group title. Try saying: 'update group OldName to NewName'."
+            return "Sorry, I couldn't update the group title. Try saying: 'update group OldName to NewName'."
 
 
     import re
@@ -650,7 +651,7 @@ def handle_internal_intents(question: str):
             # Use regex to robustly extract title and new content
             match = re.search(r"update item (.+?) with new content (.+)", question, re.IGNORECASE)
             if not match:
-                return "Sorry, I couldn’t parse the item update. Please use: 'update item [title] with new content [content]'"
+                return "Sorry, I couldn't parse the item update. Please use: 'update item [title] with new content [content]'"
 
             title = match.group(1).strip()
             new_content = match.group(2).strip()
@@ -688,7 +689,7 @@ def handle_internal_intents(question: str):
             }
             return f"Item '{title}' is in group '{group_name}'. Do you want to delete it? (yes/no)"
         except Exception:
-            return "Sorry, I couldn’t process your delete request."
+            return "Sorry, I couldn't process your delete request."
 
     # Create group
     if "create group" in q or "add group" in q:
@@ -696,7 +697,7 @@ def handle_internal_intents(question: str):
             title = q.split("group")[-1].strip()
             return create_group(title, user_id)
         except Exception:
-            return "Sorry, couldn’t create the group."
+            return "Sorry, couldn't create the group."
 
     # Delete group
     if "delete group" in q:
@@ -704,7 +705,7 @@ def handle_internal_intents(question: str):
             title = q.split("delete group")[-1].strip()
             return delete_group(title, user_id)
         except Exception:
-            return "Sorry, couldn’t delete the group."
+            return "Sorry, couldn't delete the group."
 
     # Get group of item
     if "what group is" in q and "in" in q:
@@ -764,17 +765,17 @@ def ai_homework_help():
         # Inject data into AI prompt
         ai_prompt = (
             f"You are OptiBot, a customer service and product intelligence assistant.\n\n"
-            f"Here’s what you should know about the user's product tools:\n"
+            f"Here's what you should know about the user's product tools:\n"
             f"- They manage flashcards and groups (like decks).\n"
             f"- They also use a **product Sales Prediction API**, which:\n"
             f"    • Uses features like product type, seasonality, price, marketing score, and distribution reach.\n"
             f"    • Predicts success likelihood using a trained Random Forest model.\n"
             f"    • Assigns scores and gives insights on pricing, seasonality, and marketing effectiveness.\n"
             f"    • Provides advice like 'Reformulate product concept' or 'Increase marketing budget'.\n\n"
-            f"User’s decks:\n{deck_info}\n\n"
-            f"User’s items:\n{flashcard_info}\n\n"
+            f"User's decks:\n{deck_info}\n\n"
+            f"User's items:\n{flashcard_info}\n\n"
             f"User asks: {question}\n"
-            f"Respond clearly. If it’s about product prediction, use the rules and features described above."
+            f"Respond clearly. If it's about product prediction, use the rules and features described above."
         )
 
 
@@ -885,6 +886,7 @@ def init_database():
                 initGradeLog()
                 initDecks()
                 initproductSalesPredictions()
+                initEvents()  # Initialize calendar tables
 
             db.session.commit()
             print("✅ Database initialized successfully")
