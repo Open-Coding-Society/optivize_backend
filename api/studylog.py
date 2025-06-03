@@ -14,7 +14,7 @@ product_api = Blueprint('product_api', __name__, url_prefix='/api')
 api = Api(product_api)
 
 # Enable CORS
-CORS(product_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://zafeera123.github.io"]}},
+CORS(product_api, resources={r"/*": {"origins": ["http://127.0.0.1:4887", "https://open-coding-society.github.io"]}},
      supports_credentials=True)
 
 # Product categories
@@ -58,7 +58,7 @@ def determine_category(product_type):
         return 'books'
     return 'miscellaneous'  # Default category
 class productPredictionAPI(Resource):
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://open-coding-society.github.io"], supports_credentials=True)
     def post(self):
         """Enhanced prediction with comprehensive insights"""
         data = request.get_json()
@@ -379,7 +379,7 @@ class productPredictionAPI(Resource):
         return recs[:10]  # Return maximum 10 most relevant recommendations
 
 class productTrainingAPI(Resource):
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://open-coding-society.github.io"], supports_credentials=True)
     def post(self):
         data = request.get_json()
         
@@ -454,7 +454,7 @@ class productTrainingAPI(Resource):
             return {'message': f'Training failed: {str(e)}'}, 500
 
 class productHistoryAPI(Resource):
-    @cross_origin(origins=["http://127.0.0.1:4887", "https://zafeera123.github.io"], supports_credentials=True)
+    @cross_origin(origins=["http://127.0.0.1:4887", "https://open-coding-society.github.io"], supports_credentials=True)
     def get(self):
         try:
             predictions = productSalesPrediction.query.order_by(productSalesPrediction.date_created.desc()).all()

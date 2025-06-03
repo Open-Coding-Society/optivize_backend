@@ -16,7 +16,7 @@ The Api object is connected to the Blueprint object to define the API endpoints.
 api = Api(calendar_api_v3)
 
 # Allowed CORS origins
-allowed_origins = ["http://127.0.0.1:4887", "https://zafeera123.github.io"]
+allowed_origins = ["http://127.0.0.1:4887", "https://open-coding-society.github.io"]
 
 def abort_if_not_found(data_dict, resource_id, resource_name):
     if resource_id not in data_dict:
